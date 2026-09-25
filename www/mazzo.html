@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<script src="js/bridge.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html,body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Mazzo del Sigillatore</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<script src="vendor/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --ground:#EEF0EC; --surface:#FFFFFF; --surface-2:#F5F6F2; --ink:#1E232B; --ink-soft:#56606B;
+  --line:#D5D9D1; --accent:#0E6A66; --accent-ink:#FFFFFF; --gold:#A87A1F;
+  --ok:#1F7A3D; --ok-bg:#E3F2E7; --no:#A12A22; --no-bg:#F7E3E1; --warn:#8A5A00; --warn-bg:#FBEFD6;
+  --fat:#C98A1B; --fer:#B2382C; --radius:10px;
+  --f-display:"Alegreya SC", "Palatino Linotype", Georgia, serif;
+  --f-body:"Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --f-num:"IBM Plex Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#12161A; --surface:#1B2026; --surface-2:#222830; --ink:#E6E9EC; --ink-soft:#9CA6B0;
+    --line:#333B44; --accent:#3AB0A8; --accent-ink:#0B1614; --gold:#D8AA4E;
+    --ok:#6BCB8A; --ok-bg:#16301F; --no:#F08A80; --no-bg:#3A1B18; --warn:#E8B85A; --warn-bg:#35290F;
+    --fat:#E0A43C; --fer:#E0685A; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#12161A; --surface:#1B2026; --surface-2:#222830; --ink:#E6E9EC; --ink-soft:#9CA6B0;
+  --line:#333B44; --accent:#3AB0A8; --accent-ink:#0B1614; --gold:#D8AA4E;
+  --ok:#6BCB8A; --ok-bg:#16301F; --no:#F08A80; --no-bg:#3A1B18; --warn:#E8B85A; --warn-bg:#35290F;
+  --fat:#E0A43C; --fer:#E0685A; color-scheme: dark;
+}
+*{box-sizing:border-box}
+.desknav{display:flex;gap:6px;padding-top:12px}.desknav a{font-weight:600;color:var(--accent);text-decoration:none;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}.desknav a[aria-current="page"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+[hidden]{display:none!important}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;padding-inline:16px;padding-block:0 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;padding-block:18px 10px;border-bottom:2px solid var(--gold)}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.9rem;margin:0}
+h1 span{color:var(--gold)}
+.sub{color:var(--ink-soft);font-size:.95rem;margin:0}
+h2{font-family:var(--f-display);font-size:1.25rem;margin:0;color:var(--accent);letter-spacing:.03em}
+h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin:4px 0 0;font-weight:700}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:grid;gap:12px}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px 12px}
+label.f{display:grid;gap:3px;font-size:.85rem;color:var(--ink-soft)}
+label.f.wide{grid-column:1/-1}
+input[type=number],input[type=text],select,textarea{font:inherit;font-size:1rem;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-num)}
+textarea{min-height:120px;font-family:var(--f-num);font-size:.82rem;resize:vertical}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.chk{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:var(--surface-2);font-size:.9rem;cursor:pointer}
+.chk input{accent-color:var(--accent);margin:0}
+.chk:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface))}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:600 .95rem var(--f-body);border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+button.btn.ghost{background:transparent;color:var(--accent)}
+button.btn.small{padding:4px 10px;font-size:.85rem}
+button.btn.danger{border-color:var(--no);background:transparent;color:var(--no)}
+button.btn.danger.armed{background:var(--no);color:#fff}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.note{font-size:.85rem;color:var(--ink-soft);margin:0}
+.msg{font-size:.9rem;padding:8px 10px;border-radius:8px;margin:0}
+.msg.ok{background:var(--ok-bg);color:var(--ok)} .msg.no{background:var(--no-bg);color:var(--no)} .msg.warn{background:var(--warn-bg);color:var(--warn)}
+details.prof summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}
+details.prof summary::-webkit-details-marker{display:none}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.kv{background:var(--surface-2);border-radius:8px;padding:6px 10px;min-width:92px}
+.kv b{display:block;font-family:var(--f-num);font-size:1.1rem}
+.kv span{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.kv.full b{color:var(--no)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.seg{display:flex;gap:6px}
+.seg button{font:600 .95rem var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.list{display:grid;gap:8px}
+.card{display:grid;gap:6px;text-align:left;width:100%;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;cursor:pointer}
+.card[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.card .t{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.card .n{font-weight:700;font-size:1.05rem}
+.card .m{font-size:.85rem;color:var(--ink-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:.72rem;border-radius:999px;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft)}
+.chip.gold{border-color:var(--gold);color:var(--gold)}
+.chip.no{border-color:var(--no);color:var(--no)}
+.chip.ex{border-style:dashed}
+.hp{display:grid;gap:3px}
+.hpbar{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
+.hpbar i{display:block;height:100%}
+.hpbar .fat{background:var(--fat)} .hpbar .fer{background:var(--fer)}
+.hplab{display:flex;justify-content:space-between;font-size:.78rem;font-family:var(--f-num);color:var(--ink-soft)}
+.empty{border:1px dashed var(--line);border-radius:var(--radius);padding:14px;color:var(--ink-soft);font-size:.92rem}
+.sheet{display:grid;gap:10px}
+.sheet .head{border-bottom:2px solid var(--gold);padding-bottom:6px}
+.sheet .head h2{color:var(--ink);font-size:1.5rem}
+.sheet .blk p{margin:0}
+.sheet .lab{font-weight:700}
+.legame{border:1px solid var(--gold);border-radius:8px;padding:8px 12px;background:color-mix(in srgb,var(--gold) 9%,var(--surface))}
+.legame p{margin:2px 0}
+.stats6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;text-align:center}
+.stats6 div{background:var(--surface-2);border-radius:6px;padding:4px 2px}
+.stats6 span{display:block;font-size:.7rem;letter-spacing:.08em;color:var(--ink-soft)}
+.stats6 b{font-family:var(--f-num);font-size:.9rem}
+.pre{white-space:pre-wrap}
+.act{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.mat li{margin:2px 0}
+.mat{padding-left:18px;margin:4px 0}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <nav id="desk-nav" class="desknav" hidden><a href="banco.html">Banco del Sigillatore</a><a href="mazzo.html" aria-current="page">Mazzo del Sigillatore</a></nav>
+  <header class="top">
+    <h1>Mazzo del <span>Sigillatore</span></h1>
+    <p class="sub" id="save-state">Collana v2.4 · caricamento…</p>
+  </header>
+
+  <section class="panel">
+    <details class="prof" id="prof">
+      <summary><h2 id="p-title">Sigillatore</h2><span class="note">Tocca per modificare profilo, doti e carte</span></summary>
+      <div style="display:grid;gap:12px;margin-top:12px">
+        <div class="fields">
+          <label class="f">Nome del personaggio<input type="text" id="p-nome" placeholder="es. Elira"></label>
+          <label class="f">Livello<input type="number" id="p-liv" min="1" max="20"></label>
+          <label class="f">Intelligenza<input type="number" id="p-int" min="1" max="40"></label>
+          <label class="f">Archetipo<select id="p-arch">
+            <option value="">Nessuno</option><option value="stirpe">Maestro di Stirpe</option><option value="collez">Collezionista</option>
+            <option value="spettri">Cacciatore di Spettri</option><option value="artefice">Artefice</option><option value="branco">Capobranco</option><option value="lama">Lama del Legame</option></select></label>
+          <label class="f" id="w-stirpe">Stirpe<select id="p-stirpe"><option>Animale</option><option>Bestia Magica</option><option>Parassita</option><option>Vegetale</option><option>Melma</option></select></label>
+        </div>
+        <h3>Doti e talenti che contano per il mazzo</h3>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="p-prediletta">Creatura prediletta</label>
+          <label class="chk"><input type="checkbox" id="p-profondo">Legame profondo</label>
+          <label class="chk"><input type="checkbox" id="p-vigore">Vigore del legame</label>
+          <label class="chk"><input type="checkbox" id="p-prol1">Richiamo prolungato</label>
+          <label class="chk"><input type="checkbox" id="p-prol2">Richiamo prolungato ×2</label>
+          <label class="chk"><input type="checkbox" id="p-ampl1">Mazzo ampliato</label>
+          <label class="chk"><input type="checkbox" id="p-ampl2">Mazzo ampliato ×2</label>
+        </div>
+        <label class="f wide">Affinità di tipo (+2 round di richiamo)
+          <select id="p-aff" multiple size="4"><option>Animale</option><option>Bestia Magica</option><option>Parassita</option><option>Vegetale</option><option>Melma</option><option>Aberrazione</option><option>Folletto</option><option>Drago</option><option>Esterno</option><option>Non Morto</option><option>Costrutto</option></select></label>
+        <h3>Carte possedute</h3>
+        <div class="fields" id="p-carte"></div>
+        <label class="f wide">Carte legate a un tipo<input type="text" id="p-legate" placeholder="es. 2 Runiche (Drago)"></label>
+      </div>
+    </details>
+    <div class="stats" id="p-stats"></div>
+  </section>
+
+  <div class="layout">
+    <div style="display:grid;gap:12px">
+      <section class="panel">
+        <div class="row" style="justify-content:space-between">
+          <div class="seg" role="group" aria-label="Luogo">
+            <button id="v-mazzo" aria-pressed="true">Mazzo</button><button id="v-archivio" aria-pressed="false">Archivio</button>
+          </div>
+          <div class="row"><button class="btn small" id="b-add">Aggiungi creatura</button><button class="btn small ghost" id="b-riposo">Riposo di 8 ore</button></div>
+        </div>
+        <p class="msg" id="m-list" hidden></p>
+        <div class="list" id="list"></div>
+      </section>
+
+      <section class="panel" id="imp" hidden>
+        <h2>Aggiungi creatura</h2>
+        <p class="note">Incolla il testo copiato dal Banco del Sigillatore (Copia per il Mazzo) oppure la scheda di una creatura da Golarion. Puoi anche caricare un file .json esportato dal Banco o un backup del Mazzo.</p>
+        <textarea id="i-testo" placeholder="Incolla qui…" spellcheck="false"></textarea>
+        <label class="f wide">Oppure carica un file .json<input type="file" id="i-file" accept=".json,application/json,text/plain"></label>
+        <div class="fields">
+          <label class="f">Rarità (per le schede di Golarion)<select id="i-rar"><option>Comune</option><option>Non comune</option><option>Rara</option><option>Leggendaria</option></select></label>
+          <label class="f">Carta usata<select id="i-carta"><option>Grezza</option><option>Incisa</option><option>Runica</option><option>Arcana</option><option>Suprema</option></select></label>
+        </div>
+        <div class="row"><button class="btn" id="i-ok">Aggiungi</button><button class="btn ghost" id="i-annulla">Annulla</button></div>
+        <p class="msg" id="m-imp" hidden></p>
+      </section>
+
+      <section class="panel">
+        <h2>Backup</h2>
+        <p class="note">Salva tutto il mazzo, l’archivio e il profilo in un file, da ricaricare con Aggiungi creatura.</p>
+        <div class="row"><button class="btn ghost small" id="b-backup">Scarica il backup (.json)</button></div>
+        <p class="msg" id="m-backup" hidden></p>
+      </section>
+    </div>
+
+    <section class="panel" id="detail"></section>
+  </div>
+</div>
+
+<script>
+if (window.sigillatoreDesktop) document.getElementById("desk-nav").hidden = false;
+(() => {
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = n => (n >= 0 ? "+" : "−") + Math.abs(n);
+const mod = v => Math.floor((v - 10) / 2);
+const parseGS = s => { s = String(s ?? "").trim(); const m = s.match(/^(\d+)\s*\/\s*(\d+)$/); if (m) return +m[1] / +m[2]; const v = parseFloat(s.replace(",", ".")); return isNaN(v) ? 0 : v; };
+const TIPI = ["Umanoide Mostruoso","Bestia Magica","Non Morto","Aberrazione","Animale","Costrutto","Drago","Esterno","Folletto","Gigante","Melma","Parassita","Umanoide","Vegetale"];
+const CARTE = ["Grezza","Incisa","Runica","Arcana","Suprema"];
+const MODELLI = [
+  ["A","Avanzato","+1"],["A","Gigante","+1"],["A","Stirpe superiore","GS della nuova forma"],
+  ["B","Celestiale","+0, +1 con 5+ DV"],["B","Immondo","+0, +1 con 5+ DV"],["B","Entropico","+0, +1 con 5+ DV"],["B","Risoluto","+0, +1 con 5+ DV"],
+  ["C","Animale Fatato","+1"],["C","Creatura Fatata","+1, +2 con 10+ DV"],["C","Creatura Mutante","+1"],
+  ["C","Mezzo-Drago","+2 (min. 3)"],["C","Mezzo-Celestiale","+1/+2/+3"],["C","Mezzo-Immondo","+1/+2/+3"]];
+const MOD_LIV = { "Avanzato": 4, "Gigante": 4, "Stirpe superiore": 4, "Celestiale": 8, "Immondo": 8, "Entropico": 8, "Risoluto": 8, "Animale Fatato": 7, "Creatura Fatata": 7, "Creatura Mutante": 7, "Mezzo-Drago": 11, "Mezzo-Celestiale": 11, "Mezzo-Immondo": 11 };
+
+function parseStat(txt) {
+  const t = txt.replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-");
+  const g = (re, i = 1) => { const m = t.match(re); return m ? m[i].trim() : ""; };
+  const d = {};
+  const head = t.split(/\n\s*(?:DIFESA|Difesa)\s*\n|\bCA\b/)[0] || t;
+  // nome e GS: stessa riga ("Lupo GS 1", anche senza spazio "LupoGS 1") oppure nome sulla riga sopra
+  const FR = { "½": "1/2", "⅓": "1/3", "¼": "1/4", "⅙": "1/6", "⅛": "1/8" };
+  const GSV = "(\\d+\\s*\\/\\s*\\d+|\\d+|[½⅓¼⅙⅛])";
+  const mNome = t.match(new RegExp("^[ \\t]*([^\\n]*?[^\\s\\d])[ \\t]*(?:GS|Grado di Sfida)[ \\t]*:?[ \\t]*" + GSV, "m"))
+             || t.match(new RegExp("^[ \\t]*([^\\n]{2,60}?)[ \\t]*\\n+[ \\t]*(?:GS|Grado di Sfida)[ \\t]*:?[ \\t]*" + GSV, "m"));
+  let nome = mNome ? mNome[1].trim() : "";
+  if (nome.length > 60 || /[.!?]\s/.test(nome)) nome = nome.split(/[.!?]\s+/).pop().trim();   // descrizione incollata sulla stessa riga
+  nome = nome.replace(/^(?:Statistiche|Scheda)\s*:?\s*/i, "").replace(/[\s:;,–-]+$/, "");
+  if (!nome) { const r = t.split("\n").map(x => x.trim()).find(x => x && x.length <= 40 && !/\d/.test(x) && !/:/.test(x)); nome = r || ""; }
+  d.nome = nome; d.gs = mNome ? (FR[mNome[2]] || mNome[2].replace(/\s/g, "")) : "";
+  d.pe = g(/\bPE\s*:?\s*([\d.]+)/);
+  const catLine = (t.match(/Categoria\s*:?\s*([^\n]+)/i) || [])[1];
+  const zona = catLine || head.split("\n").filter(l => l.length < 90).join("\n");
+  for (const tp of TIPI) { const re = new RegExp("\\b" + tp + "\\b(\\s*\\(([^)]*)\\))?", catLine ? "i" : ""); const m = zona.match(re); if (m) { d.tipo = tp; d.sotto = m[2] || ""; break; } }
+  d.taglia = (zona.match(/\b(Piccolissim[ao]|Minut[ao]|Minuscol[ao]|Piccol[ao]|Medi[ao]|Grande|Enorme|Mastodontic[ao]|Colossale)\b/i) || [,""])[1];
+  const allLine = (t.match(/Allineamento\s*:?\s*([^\n]+)/i) || [])[1] || zona;
+  d.all = (allLine.match(/\b(LB|NB|CB|LN|CN|LM|NM|CM|N)\b/) || [,""])[1];
+  d.iniz = g(/Iniz(?:iativa)?\s*:?\s*([+-]?\d+)/i);
+  d.sensi = g(/Sensi\s*:?\s*([^\n]+)/i);
+  d.ca = g(/^\s*CA\s*:?\s*([^\n]+)/m);
+  const pf = t.match(/\b(?:pf|PF|Punti Ferita)\s*:?\s*(\d+)\s*\(([^)]*)\)/);
+  if (pf) { d.pf = +pf[1]; d.pfdadi = pf[2]; d.dv = [...pf[2].matchAll(/(\d+)\s*d\s*\d+/gi)].reduce((a, m) => a + +m[1], 0); }
+  d.temp = g(/(?:Tempra|Temp)\s*:?\s*([+-]?\d+)/); d.rifl = g(/(?:Riflessi|Rifl)\s*:?\s*([+-]?\d+)/); d.vol = g(/(?:Volontà|Vol)\s*:?\s*([+-]?\d+)/);
+  d.difese = [...t.matchAll(/^\s*((?:RD|Immunità|Resistenze|RI|Capacità Difensive|Debolezze|Capacità Difensive)\b[^\n]*)/gmi)].map(m => m[1].trim()).join("; ");
+  d.vel = g(/Velocità\s*:?\s*([^\n]+)/i);
+  d.mischia = g(/Mischia\s*:?\s*([^\n]+)/i); d.distanza = g(/Distanza\s*:?\s*([^\n]+)/i);
+  d.spazio = g(/Spazio\s*:?\s*([^\n]+)/i);
+  d.attsp = g(/Attacchi Speciali\s*:?\s*([^\n]+)/i);
+  const mag = t.match(/(Capacità Magiche[^\n]*(?:\n(?!\s*(?:STATISTICHE|Statistiche|Caratteristiche|For(?:za)?\s*:?\s*\d)).+)*)/i);
+  d.magiche = mag ? mag[1].trim() : "";
+  const car = (full, ab) => { const m = t.match(new RegExp("\\b(?:" + full + "|" + ab + ")\\b\\s*:?\\s*(\\d+|—|–|-)")); return m ? (/^\d+$/.test(m[1]) ? +m[1] : null) : undefined; };
+  d.car = { For: car("Forza", "For"), Des: car("Destrezza", "Des"), Cos: car("Costituzione", "Cos"), Int: car("Intelligenza", "Int"), Sag: car("Saggezza", "Sag"), Car: car("Carisma", "Car") };
+  d.bab = g(/(?:Bonus di Attacco Base|Attacco Base|Att Base|BAB)\s*:?\s*([+-]?\d+)/i);
+  d.bmc = g(/BMC\s*:?\s*([^;\n]+)/); d.dmc = g(/DMC\s*:?\s*([^;\n]+)/);
+  d.talenti = g(/Talenti\s*:?\s*([^\n]+)/i);
+  d.abilita = g(/^\s*Abilità\s*:?\s*([^\n]+)/m);
+  d.linguaggi = g(/Linguaggi\s*:?\s*([^\n]+)/i);
+  d.qs = g(/Qualità Speciali\s*:?\s*([^\n]+)/i);
+  d.razziali = g(/Modificatori Razziali\s*:?\s*([^\n]+)/i);
+  const cs = t.match(/^\s*Capacità Speciali\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:Ambiente|ECOLOGIA|Ecologia|Organizzazione|Tesoro)\b|$)/m);
+  d.speciali = cs ? cs[1].trim() : "";
+  return d;
+}
+
+
+// ---------- stato ----------
+const PROF0 = { nome: "", liv: 5, int: 18, arch: "", stirpe: "Animale", prediletta: false, profondo: false, vigore: false, prol: 0, ampl: 0, aff: [], carte: { Grezza: 3, Incisa: 0, Runica: 0, Arcana: 0, Suprema: 0 }, legate: "" };
+let P = { ...PROF0 }, C = [], sel = null, vista = "mazzo", salvataggio = "locale", db = null, downloads = null;
+const ESEMPIO = { id: "esempio", esempio: true, nome: "Lupo", soprannome: "Zanna", tipo: "Animale", sotto: "", gs: "1", dv: 2, pf: 13, int: 2, rarita: "Comune", carta: "Grezza",
+  luogo: "mazzo", fatPersi: 3, ferPersi: 0, roundUsati: 2, sopita: false, prediletta: false, veterana: false, maturazioni: [], note: "", catturataIl: "",
+  stat: parseStat(`Lupo GS 1\nN Animale Medio\nIniziativa: +2\nSensi: Fiuto, Visione Crepuscolare; Percezione +8\nCA: 14, contatto 12, impreparato 12 (+2 Destrezza, +2 Naturale)\nPF: 13 (2d8+4)\nTiri Salvezza: Tempra +5, Riflessi +5, Volontà +1\nVelocità: 15 m\nMischia: morso +2 (1d6+1 più Sbilanciare)\nCaratteristiche: Forza 13, Destrezza 15, Costituzione 15, Intelligenza 2, Saggezza 12, Carisma 6\nBonus di Attacco Base: +1\nBMC: +2\nDMC: 14 (18 contro Sbilanciare)\nTalenti: Abilità Focalizzata (Percezione)\nAbilità: Furtività +6, Percezione +8, Sopravvivenza +1\nCapacità Speciali\nSbilanciare (Str): può sbilanciare un avversario come azione gratuita senza provocare attacchi di opportunità se colpisce con l'attacco indicato.`) };
+
+// ---------- archiviazione: db condiviso dell'artefatto, altrimenti questo dispositivo ----------
+const LKEY = "mazzo-sigillatore-v1";
+function localeSalva() {
+  const txt = JSON.stringify({ P, C });
+  try { localStorage.setItem(LKEY, txt); } catch (e) {}
+  const dk = window.sigillatoreDesktop; if (dk && dk.salvaDati) dk.salvaDati(txt).catch(() => {});
+}
+function localeCarica() { try { const o = JSON.parse(localStorage.getItem(LKEY) || "null"); if (o) { P = { ...PROF0, ...o.P }; C = o.C || []; } } catch (e) {} }
+const inScrittura = {};
+async function salvaCreatura(c) {
+  if (c.esempio) return;
+  const body = { ...c }; delete body.id;
+  if (db) { try { await db.collection("creature").doc(c.id).set(body); } catch (e) { erroreSalvataggio(e); } }
+  else localeSalva();
+}
+async function eliminaCreatura(id) {
+  C = C.filter(x => x.id !== id);
+  if (db) { try { await db.collection("creature").doc(id).delete(); } catch (e) { erroreSalvataggio(e); } } else localeSalva();
+}
+let profTimer = null;
+function salvaProfilo() {
+  clearTimeout(profTimer);
+  profTimer = setTimeout(async () => { if (db) { try { await db.doc("profilo/sigillatore").set({ ...P }); } catch (e) { erroreSalvataggio(e); } } else localeSalva(); }, 400);
+}
+function erroreSalvataggio(e) {
+  const m = $("m-list"); m.hidden = false; m.className = "msg no";
+  m.textContent = e && e.code === "quota_exceeded" ? "Spazio esaurito: libera qualche creatura dall’archivio." : "Salvataggio non riuscito: controlla la connessione e riprova.";
+}
+function nuovoId() { return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+// ---------- regole ----------
+function D() {
+  const liv = Math.max(1, Math.min(20, +P.liv || 1));
+  const gsStd = Math.max(1, Math.floor(liv * 3 / 4)) + (liv === 20 ? 1 : 0);
+  const gsMax = P.arch === "collez" ? Math.max(1, Math.floor(liv / 2)) + (liv === 20 ? 1 : 0) : gsStd;
+  const mazzo = (liv >= 12 ? 6 : liv >= 8 ? 5 : liv >= 4 ? 4 : 3) + (P.arch === "collez" ? 2 : 0) + (+P.ampl || 0);
+  const comando = liv >= 14 ? "azione veloce" : liv >= 7 ? "azione di movimento" : "azione standard";
+  const matMax = liv < 4 ? 0 : 1 + Math.floor((liv - 4) / 4);
+  return { liv, gsStd, gsMax, mazzo, comando, matMax, intLimit: (+P.int || 10) - 6 };
+}
+function info(c) {
+  const d = D(), gs = parseGS(c.gs);
+  const div = Math.max(0, Math.floor(d.gsStd - gs));
+  let g = div >= 8 ? 4 : div >= 6 ? 3 : div >= 4 ? 2 : div >= 2 ? 1 : 0; const extra = [];
+  if (P.profondo && g === 0) { g = 1; extra.push("Legame profondo"); }
+  if (P.prediletta && c.prediletta) { g += 1; extra.push("prediletta"); }
+  if (P.arch === "stirpe" && c.tipo === P.stirpe) { g += 1; extra.push("stirpe"); }
+  g = Math.min(4, g);
+  const dv = +c.dv || 0;
+  const tot = (+c.pf || 0) + g * dv + (P.vigore ? dv : 0);
+  const fat = Math.floor(tot / 2), fer = Math.ceil(tot / 2);
+  const fatR = Math.max(0, fat - (+c.fatPersi || 0)), ferR = Math.max(0, fer - (+c.ferPersi || 0));
+  const round = 3 + Math.floor(d.liv / 2) + (+P.prol || 0) * 3 + ((P.aff || []).includes(c.tipo) ? 2 : 0);
+  const matMax = d.matMax + (c.veterana ? 1 : 0);
+  return { d, gs, div, g, extra, tot, fat, fer, fatR, ferR, round, roundR: Math.max(0, round - (+c.roundUsati || 0)), matMax, oltreGS: gs > d.gsMax + (P.arch === "stirpe" && c.tipo === P.stirpe && d.liv >= 7 ? 1 : 0) };
+}
+function danni(c, n) {
+  const i = info(c); n = Math.max(0, n);
+  const suFat = Math.min(n, i.fatR); c.fatPersi = (+c.fatPersi || 0) + suFat;
+  c.ferPersi = Math.min(i.fer, (+c.ferPersi || 0) + (n - suFat));
+  const j = info(c); if (j.fatR === 0 && j.ferR === 0) c.sopita = true;
+}
+function cura(c, n) {   // Vol. 1: le cure ripristinano prima i Punti Ferita, poi i Punti Fatica
+  n = Math.max(0, n); const suFer = Math.min(n, +c.ferPersi || 0);
+  c.ferPersi = (+c.ferPersi || 0) - suFer; c.fatPersi = Math.max(0, (+c.fatPersi || 0) - (n - suFer));
+  if (info(c).ferR > 0) c.sopita = false;
+}
+function riposo(c) {   // 8 ore: Punti Fatica pieni, guarigione naturale di 1 PF per DV, risveglio, round ricaricati
+  c.fatPersi = 0; c.ferPersi = Math.max(0, (+c.ferPersi || 0) - Math.max(1, +c.dv || 1)); c.sopita = false; c.roundUsati = 0;
+}
+
+// ---------- importazione ----------
+function daBanco(o) {
+  const x = o.creatura || o;
+  return { nome: x.nome || "Creatura", soprannome: x.soprannome || "", tipo: x.tipo || "Animale", sotto: x.sotto || "", gs: String(x.gs ?? "1"),
+    dv: +x.dv || 0, pf: +x.pf || 0, int: x.int ?? null, rarita: x.rarita || "Comune", carta: x.carta || "Grezza",
+    maturazioni: (x.maturazioni || []).map(m => typeof m === "string" ? { modello: m, data: "" } : m), note: x.note || "", stat: x.stat || {} };
+}
+function daScheda(txt) {
+  const s = parseStat(txt);
+  if (!s.nome && !s.pf && !s.tipo) return null;
+  return { nome: s.nome || "Creatura", soprannome: "", tipo: s.tipo || "Animale", sotto: s.sotto || "", gs: s.gs || "1", dv: s.dv || 0, pf: s.pf || 0,
+    int: s.car && s.car.Int !== undefined ? s.car.Int : null, rarita: $("i-rar").value, carta: $("i-carta").value, maturazioni: [], note: "", stat: s };
+}
+const chiave = n => String(n || "").trim().toLowerCase();
+async function aggiungi(dati, msg) {
+  if (C.some(c => chiave(c.nome) === chiave(dati.nome))) {
+    msg.push({ no: true, t: `${dati.nome}: ne possiedi già una uguale (regola di unicità). Non aggiunta.` }); return;
+  }
+  const inMazzo = C.filter(c => c.luogo === "mazzo").length;
+  const luogo = inMazzo < D().mazzo ? "mazzo" : "archivio";
+  const c = { id: nuovoId(), fatPersi: 0, ferPersi: 0, roundUsati: 0, sopita: false, prediletta: false, veterana: false, catturataIl: new Date().toISOString().slice(0, 10), ...dati, luogo };
+  C.push(c); await salvaCreatura(c); sel = c.id; vista = luogo;
+  const i = info(c);
+  msg.push({ t: `${c.nome} aggiunta ${luogo === "mazzo" ? "al mazzo" : "all’archivio (mazzo pieno)"}.${i.oltreGS ? " Attenzione: il GS supera il tuo GS max." : ""}` });
+}
+async function importa(testo) {
+  const m = $("m-imp"); const msg = [];
+  testo = testo.trim(); if (!testo) { m.hidden = false; m.className = "msg no"; m.textContent = "Incolla un testo o carica un file."; return; }
+  let o = null; try { o = JSON.parse(testo); } catch (e) {}
+  if (o && o.formato === "mazzo-sigillatore/backup") {
+    if (o.profilo) { P = { ...PROF0, ...o.profilo }; salvaProfilo(); }
+    for (const x of o.creature || []) { const { id, ...resto } = x; await aggiungi(resto, msg); }
+  } else if (o && (o.formato === "banco-sigillatore/creatura" || o.creatura)) {
+    await aggiungi(daBanco(o), msg);
+  } else {
+    const d = daScheda(testo);
+    if (!d) { m.hidden = false; m.className = "msg no"; m.textContent = "Non riconosco il testo: incolla l’esportazione del Banco o il blocco statistiche completo da Golarion."; return; }
+    await aggiungi(d, msg);
+  }
+  m.hidden = false; m.className = msg.some(x => x.no) ? "msg warn" : "msg ok"; m.textContent = msg.map(x => x.t).join(" ");
+  if (!msg.some(x => x.no)) { $("i-testo").value = ""; $("i-file").value = ""; }
+  render();
+}
+
+// ---------- disegno ----------
+function renderProfilo() {
+  const d = D(), inMazzo = C.filter(c => c.luogo === "mazzo").length, inArch = C.filter(c => c.luogo === "archivio").length;
+  const ARCH = { stirpe: "Maestro di Stirpe", collez: "Collezionista", spettri: "Cacciatore di Spettri", artefice: "Artefice", branco: "Capobranco", lama: "Lama del Legame" };
+  $("p-title").textContent = `${P.nome || "Sigillatore"} · ${d.liv}° livello${P.arch ? " · " + ARCH[P.arch] : ""}`;
+  const carte = CARTE.map(k => `${+(P.carte || {})[k] || 0} ${k[0]}`).join(" · ");
+  $("p-stats").innerHTML = [["GS max", d.gsMax], ["Mazzo", `${inMazzo}/${d.mazzo}`, inMazzo > d.mazzo], ["Archivio", inArch], ["Int max", d.intLimit], ["Maturazioni", `max ${d.matMax}`], ["Comando speciale", d.comando.replace("azione ", "")], ["Carte", carte]]
+    .map(([k, v, full]) => `<div class="kv${full ? " full" : ""}"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
+  $("w-stirpe").hidden = P.arch !== "stirpe";
+}
+function barra(i) {
+  const tot = Math.max(1, i.fat + i.fer);
+  return `<div class="hp"><div class="hpbar" role="img" aria-label="Punti Fatica ${i.fatR} su ${i.fat}, Punti Ferita ${i.ferR} su ${i.fer}"><i class="fat" style="width:${i.fatR / tot * 100}%"></i><i class="fer" style="width:${i.ferR / tot * 100}%"></i></div>
+    <div class="hplab"><span>Fatica ${i.fatR}/${i.fat}</span><span>Ferita ${i.ferR}/${i.fer}</span></div></div>`;
+}
+function renderLista() {
+  const reali = C.filter(c => c.luogo === vista);
+  const mostraEsempio = C.length === 0 && vista === "mazzo";
+  const items = mostraEsempio ? [ESEMPIO] : reali;
+  $("v-mazzo").setAttribute("aria-pressed", vista === "mazzo"); $("v-archivio").setAttribute("aria-pressed", vista === "archivio");
+  if (!items.length) { $("list").innerHTML = `<div class="empty">${vista === "mazzo" ? "Il mazzo è vuoto." : "L’archivio è vuoto."} Usa Aggiungi creatura per importarne una.</div>`; return; }
+  $("list").innerHTML = (mostraEsempio ? `<div class="empty">Esempio: il mazzo è ancora vuoto. Questa creatura non è salvata; aggiungi la prima creatura per iniziare.</div>` : "") +
+    items.map(c => { const i = info(c); return `<button class="card" data-id="${c.id}" aria-current="${c.id === sel}">
+      <div class="t"><span class="n">${esc(c.soprannome ? c.soprannome + " · " : "")}${esc(c.nome)}</span><span class="m">GS ${esc(c.gs)} · ${esc(c.tipo)}</span></div>
+      ${barra(i)}
+      <div class="chips"><span class="chip gold">Legame ${i.g}</span><span class="chip">Round ${i.roundR}/${i.round}</span>
+      ${c.sopita ? `<span class="chip no">Sopita</span>` : ""}${c.prediletta && P.prediletta ? `<span class="chip gold">Prediletta</span>` : ""}
+      ${(c.maturazioni || []).map(m => `<span class="chip">${esc(m.modello)}</span>`).join("")}${i.oltreGS ? `<span class="chip no">Oltre il GS max</span>` : ""}${c.esempio ? `<span class="chip ex">Esempio</span>` : ""}</div></button>`; }).join("");
+}
+function cella(k, v) { return `<div><span>${k.toUpperCase()}</span><b>${v == null ? "—" : v + " (" + fmt(mod(v)) + ")"}</b></div>`; }
+function renderDettaglio() {
+  const c = C.find(x => x.id === sel) || (C.length === 0 ? ESEMPIO : null);
+  const el = $("detail");
+  if (!c) { el.innerHTML = `<h2>Scheda</h2><div class="empty">Scegli una creatura dall’elenco per vederne la scheda e aggiornarne lo stato.</div>`; return; }
+  const i = info(c), s = c.stat || {}, g = i.g;
+  const add = v => v === "" || v == null || isNaN(parseInt(v)) ? "—" : fmt(parseInt(v) + g);
+  const caM = (s.ca || "").match(/^(\d+)(.*?impreparat[oa]\s*)(\d+)(.*)$/i);
+  const ca = caM ? `${+caM[1] + g}${caM[2]}${+caM[3] + g}${caM[4]}` : (s.ca || "—");
+  const line = (lab, v) => v ? `<p><span class="lab">${lab}</span> ${esc(v)}</p>` : "";
+  const car = s.car || {};
+  const matOpts = MODELLI.map(([gr, n, gsTxt]) => `<option value="${n}" ${i.d.liv < MOD_LIV[n] ? "disabled" : ""}>${gr}. ${n} (GS ${gsTxt}${i.d.liv < MOD_LIV[n] ? `, dal ${MOD_LIV[n]}°` : ""})</option>`).join("");
+  const ro = c.esempio ? "disabled" : "";
+  el.innerHTML = `
+  <div class="sheet">
+    <div class="head"><h2>${esc(c.soprannome ? c.soprannome + " · " : "")}${esc(c.nome)}</h2>
+      <div class="note">GS ${esc(c.gs)} · ${esc([s.all, c.tipo + (c.sotto ? ` (${c.sotto})` : ""), s.taglia].filter(Boolean).join(" "))} · ${c.dv} DV · ${esc(c.rarita || "")}${c.catturataIl ? ` · sigillata il ${esc(c.catturataIl)} con carta ${esc(c.carta || "")}` : ""}</div></div>
+    ${barra(i)}
+    <div class="act">
+      <label class="f">Danni<input type="number" id="x-danni" min="0" value="" placeholder="0" ${ro}></label>
+      <label class="f">Cura<input type="number" id="x-cura" min="0" value="" placeholder="0" ${ro}></label>
+      <div class="row" style="align-items:end"><button class="btn small" id="x-applica" ${ro}>Applica</button><button class="btn small ghost" id="x-riposo" ${ro}>Riposo 8 ore</button></div>
+    </div>
+    <div class="row">
+      <span class="note">Round di richiamo: <b style="font-family:var(--f-num)">${i.roundR}/${i.round}</b></span>
+      <button class="btn small ghost" id="x-round" ${ro}>Usa 1 round</button><button class="btn small ghost" id="x-ricarica" ${ro}>Ricarica (1 minuto nella carta)</button>
+    </div>
+    <div class="checks">
+      <label class="chk"><input type="checkbox" id="x-sopita" ${c.sopita ? "checked" : ""} ${ro}>Sopita</label>
+      <label class="chk"><input type="checkbox" id="x-pred" ${c.prediletta ? "checked" : ""} ${P.prediletta && !c.esempio ? "" : "disabled"}>Prediletta</label>
+      <label class="chk"><input type="checkbox" id="x-vet" ${c.veterana ? "checked" : ""} ${ro}>Veterana (+1 maturazione)</label>
+    </div>
+    <div class="legame">
+      <p><span class="lab">Legame</span> Divario ${i.div} · grado ${g}${i.extra.length ? " (" + i.extra.join(", ") + ")" : ""}${g ? ` · +${g} TxC e danni, +${g} armatura naturale, +${g} TS, +${g} PF/DV` : ""}</p>
+      <p><span class="lab">Richiamo</span> ${i.round} round · comando speciale: ${i.d.comando}</p>
+      ${i.oltreGS ? `<p class="msg no">Il GS di questa creatura supera il tuo GS max (${i.d.gsMax}).</p>` : ""}
+    </div>
+    <div class="blk"><h3>Maturazioni ${(c.maturazioni || []).length}/${i.matMax}</h3>
+      ${(c.maturazioni || []).length ? `<ul class="mat">${c.maturazioni.map((m, k) => `<li>${esc(m.modello)}${m.data ? ` <span class="note">(${esc(m.data)})</span>` : ""} <button class="btn small ghost" data-rmmat="${k}" ${ro}>Rimuovi</button></li>`).join("")}</ul>` : `<p class="note">Nessuna maturazione.</p>`}
+      <div class="row"><select id="x-mod" style="max-width:320px" ${ro}>${matOpts}</select><button class="btn small" id="x-addmat" ${ro}>Aggiungi</button></div>
+      <p class="note">Dopo una maturazione aggiorna qui sotto GS, DV e PF se cambiano.</p>
+    </div>
+    <div class="fields">
+      <label class="f">Nome proprio<input type="text" id="x-sopr" value="${esc(c.soprannome)}" ${ro}></label>
+      <label class="f">GS<input type="text" id="x-gs" value="${esc(c.gs)}" ${ro}></label>
+      <label class="f">DV<input type="number" id="x-dv" value="${+c.dv || 0}" ${ro}></label>
+      <label class="f">PF totali (scheda)<input type="number" id="x-pf" value="${+c.pf || 0}" ${ro}></label>
+      <label class="f">Luogo<select id="x-luogo" ${ro}><option value="mazzo" ${c.luogo === "mazzo" ? "selected" : ""}>Mazzo</option><option value="archivio" ${c.luogo === "archivio" ? "selected" : ""}>Archivio</option></select></label>
+      <label class="f wide">Note<textarea id="x-note" style="min-height:60px;font-family:var(--f-body);font-size:.95rem" ${ro}>${esc(c.note)}</textarea></label>
+    </div>
+    <div class="blk"><h3>Difesa</h3>${line("CA", ca)}
+      <p><span class="lab">Punti Fatica</span> ${i.fat} · <span class="lab">Punti Ferita</span> ${i.fer} <span class="note">(totale ${i.tot})</span></p>
+      <p><span class="lab">Tiri Salvezza</span> Tempra ${add(s.temp)}, Riflessi ${add(s.rifl)}, Volontà ${add(s.vol)}</p>${line("Difese", s.difese)}</div>
+    <div class="blk"><h3>Attacco</h3>${line("Velocità", s.vel)}${s.mischia ? `<p><span class="lab">Mischia</span> ${esc(s.mischia)}${g ? ` <em>(+${g} TxC e danni)</em>` : ""}</p>` : ""}${s.distanza ? `<p><span class="lab">Distanza</span> ${esc(s.distanza)}${g ? ` <em>(+${g} TxC e danni)</em>` : ""}</p>` : ""}${line("Spazio", s.spazio)}${line("Attacchi Speciali", s.attsp)}${s.magiche ? `<p class="pre">${esc(s.magiche)}</p>` : ""}</div>
+    <div class="blk"><h3>Statistiche</h3><div class="stats6">${["For","Des","Cos","Int","Sag","Car"].map(k => cella(k, car[k])).join("")}</div>
+      ${line("Iniziativa", s.iniz)}${line("Sensi", s.sensi)}${line("BAB", s.bab)}${line("BMC", s.bmc)}${line("DMC", s.dmc)}${line("Talenti", s.talenti)}${line("Abilità", s.abilita)}${line("Linguaggi", s.linguaggi)}${line("Qualità Speciali", s.qs)}</div>
+    ${s.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(s.speciali)}</p></div>` : ""}
+    <div class="blk"><h3>Scheda per il giocatore</h3>
+      <div class="checks"><label class="chk"><input type="checkbox" id="x-man" checked>Legame, richiamo e maturazioni da compilare</label><label class="chk"><input type="checkbox" id="x-pre">Precompila con i valori attuali</label></div>
+      <div class="row"><button class="btn small" id="x-pdf">Scarica PDF</button><button class="btn small ghost" id="x-exp">Esporta la creatura (.json)</button>
+        <button class="btn small danger" id="x-libera" ${ro}>Libera la creatura</button></div>
+      <p class="msg" id="m-x" hidden></p></div>
+  </div>`;
+  bindDettaglio(c);
+}
+function render() { renderProfilo(); renderLista(); renderDettaglio(); }
+
+// ---------- azioni sulla scheda ----------
+function bindDettaglio(c) {
+  const salvaE = async () => { await salvaCreatura(c); render(); };
+  const on = (id, ev, fn) => { const e = $(id); if (e) e.addEventListener(ev, fn); };
+  on("x-applica", "click", () => { const d = +$("x-danni").value || 0, h = +$("x-cura").value || 0; if (d) danni(c, d); if (h) cura(c, h); salvaE(); });
+  on("x-riposo", "click", () => { riposo(c); salvaE(); });
+  on("x-round", "click", () => { const i = info(c); c.roundUsati = Math.min(i.round, (+c.roundUsati || 0) + 1); salvaE(); });
+  on("x-ricarica", "click", () => { c.roundUsati = 0; salvaE(); });
+  on("x-sopita", "change", e => { c.sopita = e.target.checked; salvaE(); });
+  on("x-vet", "change", e => { c.veterana = e.target.checked; salvaE(); });
+  on("x-pred", "change", async e => {
+    for (const o of C) if (o.prediletta && o.id !== c.id) { o.prediletta = false; await salvaCreatura(o); }
+    c.prediletta = e.target.checked; salvaE();
+  });
+  on("x-addmat", "click", () => {
+    const i = info(c), n = $("x-mod").value, m = $("m-x"); m.hidden = false;
+    const gruppo = (MODELLI.find(x => x[1] === n) || [])[0];
+    if ((c.maturazioni || []).length >= i.matMax) { m.className = "msg no"; m.textContent = `Limite di maturazioni raggiunto (${i.matMax}).`; return; }
+    if (n !== "Stirpe superiore" && (c.maturazioni || []).some(x => x.modello === n)) { m.className = "msg no"; m.textContent = `${n} è già applicato: ogni modello si applica una sola volta.`; return; }
+    if ((gruppo === "B" || gruppo === "C") && (c.maturazioni || []).some(x => ["B", "C"].includes((MODELLI.find(y => y[1] === x.modello) || [])[0]))) { m.className = "msg no"; m.textContent = "Una creatura può avere un solo modello tra Affinità e Retaggio."; return; }
+    c.maturazioni = [...(c.maturazioni || []), { modello: n, data: new Date().toISOString().slice(0, 10) }];
+    m.className = "msg ok"; m.textContent = `${n} aggiunto. Ricorda di aggiornare GS e statistiche.`; salvaE();
+  });
+  document.querySelectorAll("[data-rmmat]").forEach(b => b.addEventListener("click", () => { c.maturazioni.splice(+b.dataset.rmmat, 1); salvaE(); }));
+  const campo = (id, k, conv = v => v) => on(id, "change", e => { c[k] = conv(e.target.value); salvaE(); });
+  campo("x-sopr", "soprannome", v => v.trim()); campo("x-gs", "gs", v => v.trim()); campo("x-dv", "dv", v => +v || 0); campo("x-pf", "pf", v => +v || 0); campo("x-note", "note");
+  on("x-luogo", "change", e => {
+    const m = $("m-x");
+    if (e.target.value === "mazzo" && C.filter(x => x.luogo === "mazzo").length >= D().mazzo) { m.hidden = false; m.className = "msg no"; m.textContent = "Il mazzo è pieno: sposta prima un’altra creatura nell’archivio."; e.target.value = "archivio"; return; }
+    c.luogo = e.target.value; vista = c.luogo; salvaE();
+  });
+  on("x-libera", "click", async e => {
+    const b = e.target;
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = `Conferma: libera ${c.soprannome || c.nome}`; setTimeout(() => { if (b.isConnected) { b.classList.remove("armed"); b.textContent = "Libera la creatura"; } }, 5000); return; }
+    await eliminaCreatura(c.id); sel = null; const m = $("m-list"); m.hidden = false; m.className = "msg ok"; m.textContent = `${c.soprannome || c.nome} è stata liberata: torna libera con atteggiamento amichevole e la carta resta integra.`; render();
+  });
+  on("x-pdf", "click", () => scarica($("m-x"), () => pdf(c), `Scheda_${(c.soprannome || c.nome).replace(/[^\wÀ-ÿ]+/g, "_")}.pdf`));
+  on("x-exp", "click", () => scarica($("m-x"), () => JSON.stringify({ formato: "banco-sigillatore/creatura", versione: 1, esportatoIl: new Date().toISOString().slice(0, 10), creatura: { ...c, id: undefined, esempio: undefined } }), `Mazzo_${(c.soprannome || c.nome).replace(/[^\wÀ-ÿ]+/g, "_")}.json`));
+}
+
+// ---------- file ----------
+async function scarica(m, crea, nome) {
+  m.hidden = false;
+  const desk = window.sigillatoreDesktop;
+  try {
+    const data = crea();
+    if (desk && desk.salvaFile) { const buf = typeof data === "string" ? new TextEncoder().encode(data).buffer : await data.arrayBuffer(); await desk.salvaFile(nome, buf); m.className = "msg ok"; m.textContent = `Salvato: ${nome}`; return; }
+    if (!downloads) { m.className = "msg warn"; m.textContent = "In questa vista il download non è disponibile."; return; }
+    await downloads.save({ filename: nome, data }); m.className = "msg ok"; m.textContent = `Pronto: ${nome}`;
+  } catch (e) { m.className = "msg warn"; m.textContent = e && e.code === "declined" ? "Download annullato." : "Il download non è riuscito: riprova tra qualche secondo."; }
+}
+const pdfSafe = s => String(s ?? "").replace(/−/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
+function pdf(c) {
+  if (!window.jspdf) throw new Error("jspdf");
+  const i = info(c), s = c.stat || {}, man = $("x-man").checked, pre = $("x-pre").checked, g = man ? 0 : i.g;
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = 210, M = 16, CW = W - 2 * M; let y = 18;
+  const np = h => { if (y + h > 282) { doc.addPage(); y = 18; } };
+  const testo = (t, size = 10) => { doc.setFont("helvetica", "normal"); doc.setFontSize(size); doc.setTextColor(30, 35, 43); doc.splitTextToSize(pdfSafe(t), CW).forEach(r => { np(size * .45); doc.text(r, M, y); y += size * .45; }); };
+  const campo = (lab, val) => { if (!val) return; doc.setFont("helvetica", "bold"); doc.setFontSize(10); const w = doc.getTextWidth(pdfSafe(lab) + " ");
+    const r = doc.splitTextToSize(pdfSafe(val), CW - w); np(5); doc.setTextColor(30, 35, 43); doc.text(pdfSafe(lab), M, y); doc.setFont("helvetica", "normal");
+    r.forEach((t, k) => { if (k) np(4.6); doc.text(t, M + (k ? 0 : w), y); y += 4.6; }); };
+  const tit = t => { y += 2; np(10); doc.setDrawColor(168, 122, 31); doc.setLineWidth(.4); doc.line(M, y, W - M, y); y += 5; doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(14, 106, 102); doc.text(pdfSafe(t).toUpperCase(), M, y); y += 5.5; };
+  doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(30, 35, 43); doc.text(pdfSafe((c.soprannome ? c.soprannome + " - " : "") + c.nome), M, y); y += 7;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(86, 96, 107);
+  doc.text(pdfSafe(`GS ${c.gs} - ${[s.all, c.tipo + (c.sotto ? ` (${c.sotto})` : ""), s.taglia].filter(Boolean).join(" ")} - ${c.dv} DV`), M, y); y += 5;
+  const top = y + 2, H = man ? 38 : 16; doc.setFillColor(251, 244, 228); doc.setDrawColor(168, 122, 31); doc.roundedRect(M, top, CW, H, 2, 2, "FD");
+  if (man) {
+    const cf = (lab, nm, val, cx, cy, w) => { doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(30, 35, 43); doc.text(pdfSafe(lab), cx, cy);
+      const lx = cx + doc.getTextWidth(pdfSafe(lab)) + 2, lw = w - (lx - cx); doc.setDrawColor(120, 110, 90); doc.setLineWidth(.25); doc.line(lx, cy + 1, lx + lw, cy + 1);
+      try { const tf = new doc.AcroFormTextField(); tf.fieldName = nm; tf.Rect = [lx, cy - 4.2, lw, 5.4]; tf.fontSize = 10; tf.value = pre ? pdfSafe(val) : ""; doc.addField(tf); }
+      catch (e) { if (pre) { doc.setFont("helvetica", "normal"); doc.text(pdfSafe(val), lx + 1, cy); } } };
+    const c3 = CW / 3;
+    cf("Livello sigillatore", "livello", `${i.d.liv}°`, M + 4, top + 7, c3 - 6); cf("Grado di Legame", "legame", String(i.g), M + 4 + c3, top + 7, c3 - 6); cf("Round di richiamo", "richiamo", String(i.round), M + 4 + 2 * c3, top + 7, c3 - 8);
+    cf("Comando speciale", "comando", i.d.comando, M + 4, top + 14.5, CW - 8); cf("Maturazioni", "maturazioni", (c.maturazioni || []).map(x => x.modello).join(", "), M + 4, top + 22, CW - 8);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(86, 96, 107);
+    doc.splitTextToSize(pdfSafe("Ogni grado di Legame: +1 ai tiri per colpire e ai danni, +1 all'armatura naturale (CA), +1 ai Tiri Salvezza, +1 PF per DV (metà Punti Fatica, metà Punti Ferita). Le statistiche qui sotto sono quelle base, senza Legame."), CW - 8).forEach((r, k) => doc.text(r, M + 4, top + 29 + k * 3.7));
+  } else {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(30, 35, 43);
+    doc.text(pdfSafe(`Legame: grado ${i.g} - Richiamo: ${i.round} round - Comando speciale: ${i.d.comando}`), M + 4, top + 6.5);
+    doc.text(pdfSafe(`Maturazioni: ${(c.maturazioni || []).map(x => x.modello).join(", ") || "nessuna"}`), M + 4, top + 12);
+  }
+  y = top + H + 3;
+  const tot = (+c.pf || 0) + g * (+c.dv || 0) + (P.vigore ? +c.dv || 0 : 0);
+  const caM = (s.ca || "").match(/^(\d+)(.*?impreparat[oa]\s*)(\d+)(.*)$/i);
+  const add = v => v === "" || v == null || isNaN(parseInt(v)) ? "-" : fmt(parseInt(v) + g);
+  tit("Difesa"); campo("CA", caM ? `${+caM[1] + g}${caM[2]}${+caM[3] + g}${caM[4]}` : s.ca);
+  campo("Punti Fatica", `${Math.floor(tot / 2)}  -  Punti Ferita ${Math.ceil(tot / 2)}  (totale ${tot}${P.vigore ? ", con Vigore del legame" : ""})`);
+  campo("Tiri Salvezza", `Tempra ${add(s.temp)}, Riflessi ${add(s.rifl)}, Volontà ${add(s.vol)}`); campo("Difese", s.difese);
+  tit("Attacco"); campo("Velocità", s.vel); const ba = man ? " [+ grado di Legame a TxC e danni]" : g ? ` [+${g} TxC e danni per il Legame]` : "";
+  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Spazio", s.spazio); campo("Attacchi Speciali", s.attsp); if (s.magiche) testo(s.magiche);
+  tit("Statistiche"); const car = s.car || {}; campo("Caratteristiche", ["For","Des","Cos","Int","Sag","Car"].map(k => `${k} ${car[k] == null ? "-" : car[k]}`).join(", "));
+  campo("Iniziativa", s.iniz); campo("Sensi", s.sensi); campo("BAB", s.bab); campo("BMC", s.bmc); campo("DMC", s.dmc); campo("Talenti", s.talenti); campo("Abilità", s.abilita); campo("Linguaggi", s.linguaggi); campo("Qualità Speciali", s.qs);
+  if (s.speciali) { tit("Capacità speciali"); s.speciali.split("\n").filter(Boolean).forEach(p => { testo(p); y += 1; }); }
+  if (c.note) { tit("Note"); testo(c.note); }
+  const n = doc.getNumberOfPages(); for (let k = 1; k <= n; k++) { doc.setPage(k); doc.setFontSize(8); doc.setTextColor(120, 120, 120); doc.text(pdfSafe(`Mazzo del Sigillatore - Collana v2.4 - pagina ${k}/${n}`), W / 2, 291, { align: "center" }); }
+  return doc.output("blob");
+}
+
+// ---------- profilo: campi ----------
+function caricaProfiloUI() {
+  $("p-nome").value = P.nome || ""; $("p-liv").value = P.liv; $("p-int").value = P.int; $("p-arch").value = P.arch || ""; $("p-stirpe").value = P.stirpe || "Animale";
+  $("p-prediletta").checked = !!P.prediletta; $("p-profondo").checked = !!P.profondo; $("p-vigore").checked = !!P.vigore;
+  $("p-prol1").checked = P.prol >= 1; $("p-prol2").checked = P.prol >= 2; $("p-ampl1").checked = P.ampl >= 1; $("p-ampl2").checked = P.ampl >= 2;
+  [...$("p-aff").options].forEach(o => o.selected = (P.aff || []).includes(o.value)); $("p-legate").value = P.legate || "";
+  $("p-carte").innerHTML = CARTE.map(k => `<label class="f">${k}<input type="number" min="0" data-carta="${k}" value="${+(P.carte || {})[k] || 0}"></label>`).join("");
+  document.querySelectorAll("[data-carta]").forEach(e => e.addEventListener("change", () => { P.carte = { ...(P.carte || {}), [e.dataset.carta]: +e.value || 0 }; salvaProfilo(); render(); }));
+}
+function leggiProfiloUI() {
+  P.nome = $("p-nome").value.trim(); P.liv = Math.max(1, Math.min(20, +$("p-liv").value || 1)); P.int = +$("p-int").value || 10; P.arch = $("p-arch").value; P.stirpe = $("p-stirpe").value;
+  P.prediletta = $("p-prediletta").checked; P.profondo = $("p-profondo").checked; P.vigore = $("p-vigore").checked;
+  P.prol = $("p-prol2").checked ? 2 : $("p-prol1").checked ? 1 : 0; P.ampl = $("p-ampl2").checked ? 2 : $("p-ampl1").checked ? 1 : 0;
+  P.aff = [...$("p-aff").selectedOptions].map(o => o.value); P.legate = $("p-legate").value.trim();
+  salvaProfilo(); render();
+}
+["p-nome","p-liv","p-int","p-arch","p-stirpe","p-prediletta","p-profondo","p-vigore","p-prol1","p-prol2","p-ampl1","p-ampl2","p-aff","p-legate"].forEach(id => $(id).addEventListener("change", leggiProfiloUI));
+
+// ---------- eventi generali ----------
+$("v-mazzo").addEventListener("click", () => { vista = "mazzo"; renderLista(); });
+$("v-archivio").addEventListener("click", () => { vista = "archivio"; renderLista(); });
+$("list").addEventListener("click", e => { const b = e.target.closest(".card"); if (!b) return; sel = b.dataset.id; renderLista(); renderDettaglio(); if (window.innerWidth < 900) $("detail").scrollIntoView({ behavior: "smooth", block: "start" }); });
+$("b-add").addEventListener("click", () => { $("imp").hidden = false; $("m-imp").hidden = true; $("i-testo").focus(); });
+$("i-annulla").addEventListener("click", () => { $("imp").hidden = true; });
+$("i-ok").addEventListener("click", () => importa($("i-testo").value));
+$("i-file").addEventListener("change", async e => { const f = e.target.files && e.target.files[0]; if (!f) return; $("i-testo").value = await f.text(); });
+$("b-riposo").addEventListener("click", async () => {
+  const lista = C.filter(c => c.luogo === "mazzo"); for (const c of lista) { riposo(c); await salvaCreatura(c); }
+  const m = $("m-list"); m.hidden = false; m.className = "msg ok"; m.textContent = `Riposo di 8 ore: ${lista.length} creature del mazzo con Punti Fatica pieni, round ricaricati e 1 PF per DV recuperato.`; render();
+});
+$("b-backup").addEventListener("click", () => scarica($("m-backup"), () => JSON.stringify({ formato: "mazzo-sigillatore/backup", versione: 1, esportatoIl: new Date().toISOString().slice(0, 10), profilo: P, creature: C }), `Mazzo_backup_${new Date().toISOString().slice(0, 10)}.json`));
+
+// ---------- avvio ----------
+localeCarica(); caricaProfiloUI(); render();
+{ const dk = window.sigillatoreDesktop;
+  if (dk && dk.caricaDati) dk.caricaDati().then(txt => { if (!txt) return; try { const o = JSON.parse(txt); P = { ...PROF0, ...o.P }; C = o.C || []; caricaProfiloUI(); render(); } catch (e) {} }).catch(() => {}); }
+$("save-state").textContent = "Collana v2.4 · salvataggio su questo dispositivo";
+if (window.claude && window.claude.use) {
+  window.claude.use("downloads").then(d => { downloads = d; });
+  window.claude.use("db").then(d => {
+    if (!d) return;
+    db = d; $("save-state").textContent = "Collana v2.4 · salvato nel mazzo condiviso";
+    db.doc("profilo/sigillatore").onSnapshot(s => { if (s.exists) { P = { ...PROF0, ...s.data() }; caricaProfiloUI(); render(); } }, () => {});
+    db.collection("creature").onSnapshot(s => {
+      C = s.docs.map(x => ({ id: x.id, ...JSON.parse(JSON.stringify(x.data())) }));
+      if (sel && !C.some(c => c.id === sel)) sel = null; render();
+    }, () => { $("save-state").textContent = "Collana v2.4 · connessione al salvataggio interrotta"; });
+  });
+}
+})();
+</script>
+
+</body>
+</html>

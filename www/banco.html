@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<script src="js/bridge.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html,body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Banco del Sigillatore</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<script src="vendor/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --ground:#EEF0EC; --surface:#FFFFFF; --surface-2:#F5F6F2; --ink:#1E232B; --ink-soft:#56606B;
+  --line:#D5D9D1; --accent:#0E6A66; --accent-ink:#FFFFFF; --gold:#A87A1F; --seal:#7A2E1F;
+  --ok:#1F7A3D; --ok-bg:#E3F2E7; --no:#A12A22; --no-bg:#F7E3E1; --warn:#8A5A00; --warn-bg:#FBEFD6;
+  --radius:10px;
+  --f-display:"Alegreya SC", "Palatino Linotype", Georgia, serif;
+  --f-body:"Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --f-num:"IBM Plex Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#12161A; --surface:#1B2026; --surface-2:#222830; --ink:#E6E9EC; --ink-soft:#9CA6B0;
+    --line:#333B44; --accent:#3AB0A8; --accent-ink:#0B1614; --gold:#D8AA4E; --seal:#E08A70;
+    --ok:#6BCB8A; --ok-bg:#16301F; --no:#F08A80; --no-bg:#3A1B18; --warn:#E8B85A; --warn-bg:#35290F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#12161A; --surface:#1B2026; --surface-2:#222830; --ink:#E6E9EC; --ink-soft:#9CA6B0;
+  --line:#333B44; --accent:#3AB0A8; --accent-ink:#0B1614; --gold:#D8AA4E; --seal:#E08A70;
+  --ok:#6BCB8A; --ok-bg:#16301F; --no:#F08A80; --no-bg:#3A1B18; --warn:#E8B85A; --warn-bg:#35290F;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+.desknav{display:flex;gap:6px;padding-top:12px}.desknav a{font-weight:600;color:var(--accent);text-decoration:none;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}.desknav a[aria-current="page"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+[hidden]{display:none!important}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;padding-inline:16px;padding-block:0 96px}
+.wrap{max-width:1180px;margin:0 auto}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;padding-block:18px 10px;border-bottom:2px solid var(--gold)}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.9rem;margin:0;letter-spacing:.02em;color:var(--ink)}
+h1 span{color:var(--gold)}
+.sub{color:var(--ink-soft);font-size:.95rem;margin:0}
+.tabs{display:flex;gap:6px;margin:14px 0}
+.tab{font:600 1rem var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 16px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:grid;gap:12px}
+.col{display:grid;gap:18px}
+h2{font-family:var(--f-display);font-size:1.25rem;margin:0;color:var(--accent);letter-spacing:.03em;text-wrap:balance}
+h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin:6px 0 0;font-weight:700}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px 12px}
+label.f{display:grid;gap:3px;font-size:.85rem;color:var(--ink-soft)}
+label.f.wide{grid-column:1/-1}
+input[type=number],input[type=text],input[type=url],select,textarea{font:inherit;font-size:1rem;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-num)}
+textarea{min-height:170px;font-family:var(--f-num);font-size:.82rem;line-height:1.4;resize:vertical}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.chk{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:var(--surface-2);font-size:.9rem;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--accent);margin:0}
+.chk:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface))}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:600 .95rem var(--f-body);border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+button.btn.ghost{background:transparent;color:var(--accent)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+.note{font-size:.85rem;color:var(--ink-soft);margin:0}
+.msg{font-size:.9rem;padding:8px 10px;border-radius:8px;margin:0}
+.msg.ok{background:var(--ok-bg);color:var(--ok)} .msg.no{background:var(--no-bg);color:var(--no)} .msg.warn{background:var(--warn-bg);color:var(--warn)}
+.derived{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.kv{background:var(--surface-2);border-radius:8px;padding:6px 10px}
+.kv b{display:block;font-family:var(--f-num);font-size:1.15rem;color:var(--ink)}
+.kv span{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+/* risultato */
+.result{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.verdict{display:flex;align-items:center;gap:14px;padding:12px;border-radius:var(--radius);border:2px solid var(--line)}
+.verdict.ok{border-color:var(--ok);background:var(--ok-bg)} .verdict.no{border-color:var(--no);background:var(--no-bg)} .verdict.auto{border-color:var(--gold);background:var(--warn-bg)}
+.seal{flex:none;width:76px;height:76px;border-radius:50%;display:grid;place-items:center;text-align:center;background:var(--surface);border:3px double var(--gold)}
+.seal b{font-family:var(--f-num);font-size:1.7rem;line-height:1;color:var(--ink)}
+.seal small{display:block;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.vtext strong{display:block;font-size:1.1rem}
+.checklist{list-style:none;padding:0;margin:0;display:grid;gap:4px}
+.checklist li{display:flex;gap:8px;font-size:.92rem}
+.checklist li::before{content:"✓";font-weight:700;color:var(--ok);width:1em;flex:none}
+.checklist li.no::before{content:"✗";color:var(--no)}
+.checklist li.info::before{content:"•";color:var(--gold)}
+table.brk{width:100%;border-collapse:collapse;font-size:.92rem}
+table.brk td{padding:4px 2px;border-bottom:1px dashed var(--line)}
+table.brk td:last-child{text-align:right;font-family:var(--f-num);white-space:nowrap}
+table.brk tr.tot td{border-bottom:none;font-weight:700;border-top:2px solid var(--ink)}
+.bar{height:10px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--accent)}
+.dock{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:2px solid var(--gold);display:none;gap:14px;align-items:center;justify-content:space-between;font-size:.95rem;z-index:5}
+.dock b{font-family:var(--f-num);font-size:1.2rem}
+@media (max-width:860px){.dock{display:flex}}
+/* scheda */
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;gap:12px;max-width:820px}
+.sheet header{border-bottom:2px solid var(--gold);padding-bottom:8px}
+.sheet h2{color:var(--ink);font-size:1.6rem}
+.sheet .meta{color:var(--ink-soft)}
+.sheet .blk{display:grid;gap:3px}
+.sheet .blk p{margin:0}
+.sheet .lab{font-weight:700}
+.legame{border:1px solid var(--gold);border-radius:8px;padding:10px 12px;background:color-mix(in srgb,var(--gold) 9%,var(--surface))}
+.stats6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;text-align:center}
+.stats6 div{background:var(--surface-2);border-radius:6px;padding:4px 2px}
+.stats6 span{display:block;font-size:.7rem;letter-spacing:.08em;color:var(--ink-soft)}
+.stats6 b{font-family:var(--f-num)}
+.pre{white-space:pre-wrap}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <nav id="desk-nav" class="desknav" hidden><a href="banco.html" aria-current="page">Banco del Sigillatore</a><a href="mazzo.html">Mazzo del Sigillatore</a></nav>
+  <header class="top">
+    <h1>Banco del <span>Sigillatore</span></h1>
+    <p class="sub">CD di cattura e scheda della creatura sigillata · Collana v2.4</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-cattura" aria-selected="true" aria-controls="view-cattura">Cattura</button>
+    <button class="tab" role="tab" id="tab-scheda" aria-selected="false" aria-controls="view-scheda">Scheda creatura</button>
+  </div>
+
+  <div id="view-cattura" role="tabpanel">
+    <div class="grid">
+      <div class="col">
+        <section class="panel" aria-labelledby="h-sig">
+          <h2 id="h-sig">Sigillatore</h2>
+          <div class="fields">
+            <label class="f">Livello<input type="number" id="s-liv" min="1" max="20" value="5"></label>
+            <label class="f">Intelligenza (permanente)<input type="number" id="s-int" min="1" max="40" value="18"></label>
+            <label class="f">Archetipo
+              <select id="s-arch">
+                <option value="">Nessuno</option><option value="stirpe">Maestro di Stirpe</option>
+                <option value="collez">Collezionista</option><option value="spettri">Cacciatore di Spettri</option>
+                <option value="artefice">Artefice</option><option value="branco">Capobranco</option>
+                <option value="lama">Lama del Legame</option>
+              </select></label>
+            <label class="f" id="w-stirpe" hidden>Stirpe
+              <select id="s-stirpe"><option>Animale</option><option>Bestia Magica</option><option>Parassita</option><option>Vegetale</option><option>Melma</option></select></label>
+            <label class="f">Carta
+              <select id="s-carta"></select></label>
+          </div>
+          <h3>Doti, talenti e incantesimi</h3>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="d-legata">Carta legata al tipo</label>
+            <label class="chk"><input type="checkbox" id="d-specializzati">Sigilli specializzati</label>
+            <label class="chk"><input type="checkbox" id="d-rarita">Cacciatore di rarità</label>
+            <label class="chk"><input type="checkbox" id="d-esperto">Sigillatore esperto</label>
+            <label class="chk"><input type="checkbox" id="d-resistente">Carta resistente</label>
+            <label class="chk"><input type="checkbox" id="d-prolungato">Richiamo prolungato</label>
+            <label class="chk"><input type="checkbox" id="d-prolungato2">Richiamo prolungato ×2</label>
+            <label class="chk"><input type="checkbox" id="d-prediletta">Creatura prediletta</label>
+            <label class="chk"><input type="checkbox" id="d-profondo">Legame profondo</label>
+          </div>
+          <label class="f wide">Affinità di tipo (tipi scelti)
+            <select id="d-affinita" multiple size="4">
+              <option>Animale</option><option>Bestia Magica</option><option>Parassita</option><option>Vegetale</option><option>Melma</option>
+              <option>Aberrazione</option><option>Folletto</option><option>Drago</option><option>Esterno</option><option>Non Morto</option><option>Costrutto</option>
+            </select></label>
+          <label class="f">Incantesimo sulla carta
+            <select id="s-cartasigillo"><option value="0">Nessuno</option><option value="2">Carta sigillo (−2 CD)</option><option value="5">Carta sigillo superiore (−5 CD)</option></select></label>
+          <div class="derived" id="s-derived"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="h-imp">
+          <h2 id="h-imp">Importa la creatura</h2>
+          <label class="f wide">Link della pagina Golarion
+            <input type="url" id="i-link" placeholder="https://golarion.altervista.org/wiki/Lupo"></label>
+          <div class="row"><button class="btn ghost" id="b-link">Compila dal link</button></div>
+          <p class="note" id="n-link">Nel browser il collegamento diretto a Golarion non è consentito: apri la pagina della creatura, seleziona la scheda e incollala qui sotto. Nella versione per Windows basterà il link.</p>
+          <label class="f wide">Scheda copiata <span class="note" id="n-esempio">(esempio precaricato: Lupo)</span>
+            <textarea id="i-testo" spellcheck="false"></textarea></label>
+          <div class="row"><button class="btn" id="b-compila">Compila dalla scheda</button><button class="btn ghost" id="b-svuota">Svuota</button></div>
+          <p class="msg" id="m-import" hidden></p>
+        </section>
+
+        <section class="panel" aria-labelledby="h-cre">
+          <h2 id="h-cre">Creatura</h2>
+          <div class="fields">
+            <label class="f wide">Nome<input type="text" id="c-nome"></label>
+            <label class="f">Tipo
+              <select id="c-tipo">
+                <option>Animale</option><option>Bestia Magica</option><option>Parassita</option><option>Vegetale</option><option>Melma</option>
+                <option>Aberrazione</option><option>Folletto</option><option>Drago</option><option>Esterno</option><option>Non Morto</option><option>Costrutto</option>
+                <option>Gigante</option><option>Umanoide</option><option>Umanoide Mostruoso</option>
+              </select></label>
+            <label class="f">Sottotipi<input type="text" id="c-sotto" placeholder="es. Fuoco, Elementale"></label>
+            <label class="f">GS<input type="text" id="c-gs" value="1" inputmode="decimal"></label>
+            <label class="f">DV<input type="number" id="c-dv" min="0" value="2"></label>
+            <label class="f">PF totali (scheda)<input type="number" id="c-pfmax" min="1" value="13"></label>
+            <label class="f">Divisi in<output id="c-split" class="kv" style="display:block"></output></label>
+            <label class="f">Intelligenza <small>(vuoto = senza mente)</small><input type="text" id="c-int" value="2"></label>
+            <label class="f">Rarità
+              <select id="c-rarita"><option value="0">Comune</option><option value="3">Non comune</option><option value="6">Rara</option><option value="10">Leggendaria</option></select></label>
+          </div>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="c-unica">Creatura unica</label>
+            <label class="chk"><input type="checkbox" id="c-doppione">Il sigillatore ne ha già una uguale</label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="h-stato">
+          <h2 id="h-stato">Stato in combattimento</h2>
+          <div class="fields">
+            <label class="f">Danni subiti<input type="number" id="t-danni" min="0" value="9"></label>
+            <label class="f">Punti Fatica rimasti<output id="t-fat" class="kv" style="display:block"></output></label>
+            <label class="f">Punti Ferita rimasti<output id="t-fer" class="kv" style="display:block"></output></label>
+            <label class="f">Fascia Punti Ferita<output id="t-fascia" class="kv" style="display:block"></output></label>
+          </div>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="t-conoscenze">Conoscenze superata</label>
+            <label class="chk"><input type="checkbox" id="t-consenziente">Consenziente</label>
+          </div>
+          <h3>Condizioni</h3>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" data-cond="4" id="k-sensi">Privo di Sensi (−4)</label>
+            <label class="chk"><input type="checkbox" data-cond="5" id="k-paral">Paralizzato (−5)</label>
+            <label class="chk"><input type="checkbox" data-cond="5" id="k-immob">Immobilizzato (−5)</label>
+            <label class="chk"><input type="checkbox" data-cond="5" id="k-indif">Indifeso (−5)</label>
+            <label class="chk"><input type="checkbox" data-cond="2" id="k-stord">Stordito (−2)</label>
+            <label class="chk"><input type="checkbox" data-cond="2" id="k-conf">Confuso (−2)</label>
+            <label class="chk"><input type="checkbox" data-cond="2" id="k-lotta">In Lotta (−2)</label>
+            <label class="chk"><input type="checkbox" data-cond="2" id="k-intr">Intralciato (−2)</label>
+          </div>
+          <p class="note">Le condizioni non si sommano: vale solo il modificatore più favorevole. I danni si tolgono prima dai Punti Fatica, poi dai Punti Ferita.</p>
+        </section>
+      </div>
+
+      <aside class="col result" aria-live="polite">
+        <section class="panel">
+          <h2>Esito</h2>
+          <div class="verdict" id="r-verdict">
+            <div class="seal"><div><small>CD</small><b id="r-cd">—</b></div></div>
+            <div class="vtext"><strong id="r-title">—</strong><span id="r-sub"></span></div>
+          </div>
+          <div>
+            <div class="row" style="justify-content:space-between"><span>Probabilità di riuscita</span><b id="r-perc" style="font-family:var(--f-num)">—</b></div>
+            <div class="bar"><i id="r-bar" style="width:0%"></i></div>
+          </div>
+          <h3>Requisiti</h3>
+          <ul class="checklist" id="r-checks"></ul>
+          <h3>Calcolo della CD</h3>
+          <table class="brk" id="r-cdtab"></table>
+          <h3>Prova di sigillo</h3>
+          <table class="brk" id="r-provatab"></table>
+          <ul class="checklist" id="r-note"></ul>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div id="view-scheda" role="tabpanel" hidden>
+    <div class="col">
+      <section class="panel">
+        <h2>Dati della scheda</h2>
+        <p class="note">La scheda usa la creatura e il sigillatore della scheda Cattura. Il Bonus di Legame è già applicato a CA, Tiri Salvezza e PF. I PF sono divisi a metà tra Punti Fatica e Punti Ferita; il punto dispari va ai Punti Ferita.</p>
+        <div class="fields">
+          <label class="f wide">Nome proprio (facoltativo)<input type="text" id="p-soprannome" placeholder="es. Zanna"></label>
+          <label class="f wide">Maturazioni applicate<input type="text" id="p-mat" placeholder="es. Avanzato, Celestiale"></label>
+          <label class="f wide">Note per il giocatore<textarea id="p-note" style="min-height:70px;font-family:var(--f-body);font-size:.95rem"></textarea></label>
+        </div>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="p-manuale" checked>Legame, richiamo e maturazioni da compilare</label>
+          <label class="chk"><input type="checkbox" id="p-precompila">Precompila con i valori attuali</label>
+        </div>
+        <p class="note">Con la prima opzione il PDF riporta le statistiche base della creatura e un riquadro con campi modificabili (livello, grado di Legame, round di richiamo, comando speciale, maturazioni): si aggiornano a penna o da un lettore PDF quando il sigillatore sale di livello.</p>
+        <div class="row"><button class="btn" id="b-pdf">Scarica la scheda in PDF</button></div>
+        <p class="msg" id="m-pdf" hidden></p>
+        <h3>Esporta nel Mazzo del Sigillatore</h3>
+        <p class="note">Trasferisce questa creatura nel Mazzo del Sigillatore con tutta la scheda. Il modo più rapido è copiarla e incollarla nel Mazzo; in alternativa scarica il file e caricalo da lì.</p>
+        <div class="row"><button class="btn" id="b-copia">Copia per il Mazzo</button><button class="btn ghost" id="b-json">Scarica il file (.json)</button></div>
+        <textarea id="t-export" readonly hidden style="min-height:90px"></textarea>
+        <p class="msg" id="m-export" hidden></p>
+      </section>
+      <article class="sheet" id="sheet"></article>
+    </div>
+  </div>
+</div>
+
+<div class="dock" aria-hidden="true"><span>CD <b id="d-cd">—</b></span><span id="d-need">—</span><span id="d-esito">—</span></div>
+
+<script>
+if (window.sigillatoreDesktop) document.getElementById("desk-nav").hidden = false;
+(() => {
+const $ = id => document.getElementById(id);
+const ESEMPIO = `Lupo GS 1
+PE 400
+Questo possente canide osserva la preda con occhi giallognoli, passandosi la lingua sui bianchi denti affilati.
+Allineamento: N
+Categoria: Animale Medio
+Iniziativa: +2
+Sensi: Fiuto, Visione Crepuscolare; Percezione +8
+DIFESA
+CA: 14, contatto 12, impreparato 12 (+2 Destrezza, +2 Naturale)
+PF: 13 (2d8+4)
+Tiri Salvezza: Tempra +5, Riflessi +5, Volontà +1
+ATTACCO
+Velocità: 15 m
+Mischia: morso +2 (1d6+1 più Sbilanciare)
+STATISTICHE
+Caratteristiche: Forza 13, Destrezza 15, Costituzione 15, Intelligenza 2, Saggezza 12, Carisma 6
+Bonus di Attacco Base: +1
+BMC: +2
+DMC: 14 (18 contro Sbilanciare)
+Talenti: Abilità Focalizzata (Percezione)
+Abilità: Furtività +6, Percezione +8, Sopravvivenza +1 (+5 seguendo tracce con il Fiuto)
+Modificatori Razziali: +4 Sopravvivenza seguendo tracce con il Fiuto
+Capacità Speciali
+Sbilanciare (Str): può sbilanciare un avversario come azione gratuita senza provocare attacchi di opportunità se colpisce con l'attacco indicato.
+Ambiente: Foreste fredde o temperate
+Organizzazione: Solitario, coppia o branco (3–12)
+Tesoro: Nessuno`;
+
+const CARTE = [{n:"Grezza",l:1,b:0},{n:"Incisa",l:5,b:2},{n:"Runica",l:9,b:4},{n:"Arcana",l:13,b:6},{n:"Suprema",l:17,b:8}];
+const TIPI = ["Umanoide Mostruoso","Bestia Magica","Non Morto","Aberrazione","Animale","Costrutto","Drago","Esterno","Folletto","Gigante","Melma","Parassita","Umanoide","Vegetale"];
+let parsed = null;        // dati completi della scheda importata
+const fmt = n => (n >= 0 ? "+" : "−") + Math.abs(n);
+const mod = v => Math.floor((v - 10) / 2);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = (id, d = 0) => { const v = parseFloat(String($(id).value).replace(",", ".")); return isNaN(v) ? d : v; };
+const parseGS = s => { s = String(s).trim(); const m = s.match(/^(\d+)\s*\/\s*(\d+)$/); if (m) return +m[1] / +m[2]; const v = parseFloat(s.replace(",", ".")); return isNaN(v) ? 0 : v; };
+
+// ------- memoria locale (comodità per chi usa lo strumento) -------
+const KEY = "banco-sigillatore-v1";
+function salva() {
+  try {
+    const ids = ["s-liv","s-int","s-arch","s-stirpe","s-carta","s-cartasigillo"];
+    const chk = ["d-legata","d-specializzati","d-rarita","d-esperto","d-resistente","d-prolungato","d-prolungato2","d-prediletta","d-profondo"];
+    const o = {}; ids.forEach(i => o[i] = $(i).value); chk.forEach(i => o[i] = $(i).checked);
+    o.aff = [...$("d-affinita").selectedOptions].map(x => x.value);
+    localStorage.setItem(KEY, JSON.stringify(o));
+  } catch (e) {}
+}
+function carica() {
+  try {
+    const o = JSON.parse(localStorage.getItem(KEY) || "null"); if (!o) return;
+    Object.entries(o).forEach(([k, v]) => { const el = $(k); if (!el) return; if (el.type === "checkbox") el.checked = v; else el.value = v; });
+    if (o.aff) [...$("d-affinita").options].forEach(op => op.selected = o.aff.includes(op.value));
+  } catch (e) {}
+}
+
+// ------- sigillatore -------
+function sig() {
+  const liv = clamp(Math.round(num("s-liv", 1)), 1, 20);
+  const int = num("s-int", 10);
+  const arch = $("s-arch").value;
+  const gsStd = Math.max(1, Math.floor(liv * 3 / 4)) + (liv === 20 ? 1 : 0);
+  const gsMax = arch === "collez" ? Math.max(1, Math.floor(liv / 2)) + (liv === 20 ? 1 : 0) : gsStd;
+  const mazzo = liv >= 12 ? 6 : liv >= 8 ? 5 : liv >= 4 ? 4 : 3;
+  const round = 3 + Math.floor(liv / 2) + ($("d-prolungato").checked ? 3 : 0) + ($("d-prolungato2").checked ? 3 : 0);
+  const comando = liv >= 14 ? "azione veloce" : liv >= 7 ? "azione di movimento" : "azione standard";
+  return { liv, int, arch, gsStd, gsMax, mazzo: mazzo + (arch === "collez" ? 2 : 0), round, comando,
+    intLimit: int - 6, stirpe: $("s-stirpe").value, bonusInt: mod(int) };
+}
+function aggiornaCarte() {
+  const liv = clamp(Math.round(num("s-liv", 1)), 1, 20), sel = $("s-carta"), prev = sel.value;
+  sel.innerHTML = CARTE.filter(c => c.l <= liv).map(c => `<option value="${c.n}">${c.n} (+${c.b})</option>`).join("");
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev; else sel.value = sel.options[sel.options.length - 1].value;
+}
+
+function tipiAmmessi(S) {
+  if (S.arch === "stirpe") return [S.stirpe];
+  const t = ["Animale","Bestia Magica","Parassita","Vegetale","Melma"];
+  if (S.liv >= 7) {
+    if (S.arch === "spettri") t.push("Non Morto (corporeo)");
+    else if (S.arch === "artefice") t.push("Costrutto");
+    else t.push("Aberrazione","Folletto");
+  }
+  if (S.liv >= 11) {
+    if (S.arch === "spettri") t.push("Non Morto (incorporeo)");
+    else t.push("Drago","Esterno (elementale)");
+  }
+  return t;
+}
+function checkTipo(S, tipo, sotto) {
+  const s = sotto.toLowerCase();
+  const allineato = /\b(buono|malvagio|caotico|legale)\b/.test(s);
+  if (["Umanoide","Umanoide Mostruoso","Gigante"].includes(tipo)) return { ok: false, t: `${tipo}: mai sigillabile` };
+  const amm = tipiAmmessi(S);
+  if (tipo === "Esterno") {
+    if (allineato) return { ok: false, t: "Esterno con sottotipo di allineamento: mai sigillabile" };
+    const elem = /(elementale|aria|acqua|fuoco|terra)/.test(s);
+    if (!elem) return { ok: false, t: "Esterno senza sottotipo elementale: non sigillabile" };
+    return amm.includes("Esterno (elementale)") ? { ok: true, t: "Esterno elementale: sigillabile" } : { ok: false, t: "Esterni elementali: servono l’11° livello (Sigillo esteso II)" };
+  }
+  if (tipo === "Non Morto") {
+    const inc = /incorpore/.test(s);
+    const need = inc ? "Non Morto (incorporeo)" : "Non Morto (corporeo)";
+    if (amm.includes(need)) return { ok: true, t: `${need}: sigillabile (Cacciatore di Spettri)` };
+    return { ok: false, t: S.arch === "spettri" ? `${need}: serve il ${inc ? "11°" : "7°"} livello` : "Non Morti: solo con l’archetipo Cacciatore di Spettri" };
+  }
+  if (tipo === "Costrutto") return amm.includes("Costrutto") ? { ok: true, t: "Costrutto: sigillabile (Artefice)" } : { ok: false, t: S.arch === "artefice" ? "Costrutti: serve il 7° livello" : "Costrutti: solo con l’archetipo Artefice" };
+  if (amm.includes(tipo)) return { ok: true, t: `${tipo}: sigillabile` };
+  if (S.arch === "stirpe") return { ok: false, t: `Maestro di Stirpe: può sigillare solo ${S.stirpe}` };
+  const lv = ["Aberrazione","Folletto"].includes(tipo) ? "7°" : "11°";
+  if (S.arch === "spettri" || S.arch === "artefice") return { ok: false, t: `${tipo}: non disponibile con questo archetipo` };
+  return { ok: false, t: `${tipo}: serve il ${lv} livello (Sigillo esteso)` };
+}
+
+function legame(S, gsCre) {
+  const div = Math.max(0, Math.floor(S.gsStd - gsCre));
+  let g = div >= 8 ? 4 : div >= 6 ? 3 : div >= 4 ? 2 : div >= 2 ? 1 : 0;
+  const extra = [];
+  if ($("d-profondo").checked && g === 0) { g = 1; extra.push("Legame profondo"); }
+  if ($("d-prediletta").checked) { g += 1; extra.push("prediletta"); }
+  if (S.arch === "stirpe" && $("c-tipo").value === S.stirpe) { g += 1; extra.push("stirpe"); }
+  return { div, g: Math.min(4, g), extra };
+}
+
+// Vol. 1: i PF della scheda si dividono a metà; il punto dispari va ai Punti Ferita
+const dividi = tot => ({ fat: Math.floor(tot / 2), fer: Math.ceil(tot / 2) });
+function stato() {
+  const D = dividi(num("c-pfmax", 0)), danni = Math.max(0, num("t-danni", 0));
+  const fat = Math.max(0, D.fat - danni), fer = Math.max(0, D.fer - Math.max(0, danni - D.fat));
+  return { ...D, fatR: fat, ferR: fer };
+}
+function fascia() {
+  const st = stato(), max = st.fer, att = st.ferR, p = max > 0 ? att / max : 0;
+  if (p >= .75) return { t: "75% o più", m: 6 };
+  if (p >= .5) return { t: "50% o più", m: 4 };
+  if (p >= .25) return { t: "25% o più", m: 2 };
+  return { t: "meno del 25%", m: 0 };
+}
+
+// ------- calcolo principale -------
+function calcola() {
+  const S = sig();
+  const tipo = $("c-tipo").value, sotto = $("c-sotto").value;
+  const gs = parseGS($("c-gs").value);
+  const intRaw = $("c-int").value.trim();
+  const intCre = intRaw === "" || /^[—–-]$/.test(intRaw) ? 0 : parseInt(intRaw, 10) || 0;
+  const rar = +$("c-rarita").value;
+  const carta = CARTE.find(c => c.n === $("s-carta").value) || CARTE[0];
+  const stirpeMatch = S.arch === "stirpe" && tipo === S.stirpe;
+  const gsMax = S.gsMax + (stirpeMatch && S.liv >= 7 ? 1 : 0);
+
+  // derivati sigillatore
+  $("s-derived").innerHTML = [
+    ["GS max", gsMax], ["Int max creatura", S.intLimit], ["Mazzo", S.mazzo], ["Round di richiamo", S.round], ["Comando speciale", S.comando.replace("azione ", "")]
+  ].map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
+
+  // requisiti
+  const checks = [];
+  const tipoC = checkTipo(S, tipo, sotto); checks.push({ ok: tipoC.ok, t: tipoC.t });
+  checks.push({ ok: gs <= gsMax, t: `GS ${$("c-gs").value} ${gs <= gsMax ? "≤" : ">"} GS max ${gsMax}` });
+  checks.push({ ok: intCre <= S.intLimit, t: `Intelligenza ${intRaw || "—"} ${intCre <= S.intLimit ? "≤" : ">"} ${S.intLimit} (Int del sigillatore −6)` });
+  const cons = $("t-consenziente").checked;
+  const st = stato();
+  $("c-split").textContent = `${st.fat} Fatica · ${st.fer} Ferita`;
+  $("t-fat").textContent = st.fatR; $("t-fer").textContent = `${st.ferR} / ${st.fer}`;
+  if (!cons) checks.push({ ok: st.fatR === 0 && st.ferR > 0, t: st.ferR === 0 ? "La creatura è a 0 Punti Ferita" : st.fatR === 0 ? "Punti Fatica esauriti" : `La creatura ha ancora ${st.fatR} Punti Fatica` });
+  if (rar === 10) checks.push({ ok: carta.n === "Suprema", t: carta.n === "Suprema" ? "Leggendaria: carta Suprema" : "Leggendaria: serve una carta Suprema (17° livello)" });
+  if ($("c-unica").checked) checks.push({ ok: false, t: "Creatura unica: mai sigillabile" });
+  if ($("c-doppione").checked) checks.push({ ok: false, t: "Unicità: il sigillatore ne ha già una uguale" });
+  const sigillabile = checks.every(c => c.ok);
+  $("r-checks").innerHTML = checks.map(c => `<li class="${c.ok ? "" : "no"}">${c.t}</li>`).join("");
+
+  // CD
+  const f = fascia(); $("t-fascia").textContent = `${f.t} (+${f.m})`;
+  const condVals = [...document.querySelectorAll("[data-cond]")].filter(x => x.checked).map(x => +x.dataset.cond);
+  const cond = condVals.length ? Math.max(...condVals) : 0;
+  const intMod = intCre <= 2 ? 0 : intCre <= 6 ? 2 : intCre <= 10 ? 4 : intCre <= 14 ? 6 : 8;
+  let rarMod = rar; if ($("d-rarita").checked && S.liv >= 6) rarMod = Math.max(0, rar - 3);
+  const con = $("t-conoscenze").checked ? 2 : 0;
+  const csig = +$("s-cartasigillo").value;
+  const base = Math.floor(10 + 2 * gs);
+  const cd = base + f.m - cond + rarMod + intMod - con - csig;
+  const rowsCD = [["Base: 10 + 2 × GS", base], [`Punti Ferita: ${f.t}`, f.m]];
+  if (cond) rowsCD.push(["Condizione più favorevole", -cond]);
+  rowsCD.push([`Rarità${rarMod !== rar ? " (Cacciatore di rarità)" : ""}`, rarMod], [`Intelligenza ${intRaw || "—"}`, intMod]);
+  if (con) rowsCD.push(["Conoscenze superata", -2]);
+  if (csig) rowsCD.push([csig === 5 ? "Carta sigillo superiore" : "Carta sigillo", -csig]);
+  $("r-cdtab").innerHTML = rowsCD.map(([k, v]) => `<tr><td>${k}</td><td>${fmt(v)}</td></tr>`).join("") + `<tr class="tot"><td>CD</td><td>${cd}</td></tr>`;
+
+  // prova
+  const aff = [...$("d-affinita").selectedOptions].map(o => o.value);
+  const legata = $("d-legata").checked ? ($("d-specializzati").checked && S.liv >= 5 ? 3 : 2) : 0;
+  const esperto = $("d-esperto").checked ? (S.liv >= 10 ? 4 : 2) : 0;
+  const rows = [["Livello di sigillatore", S.liv], ["Bonus di Intelligenza", S.bonusInt], [`Carta ${carta.n}`, carta.b]];
+  if (legata) rows.push([`Carta legata al tipo${legata === 3 ? " (Sigilli specializzati)" : ""}`, legata]);
+  if (aff.includes(tipo)) rows.push(["Affinità di tipo", 2]);
+  if (esperto) rows.push(["Sigillatore esperto", esperto]);
+  if (stirpeMatch) rows.push(["Stirpe prescelta", 2]);
+  const bonus = rows.reduce((a, r) => a + r[1], 0);
+  $("r-provatab").innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${fmt(v)}</td></tr>`).join("") + `<tr class="tot"><td>Bonus alla prova</td><td>${fmt(bonus)}</td></tr>`;
+  const need = cd - bonus;
+  const p = cons ? 100 : clamp(Math.round((21 - need) / 20 * 100), 0, 100);
+
+  // verdetto
+  const V = $("r-verdict"); V.className = "verdict";
+  let title, sub, esito;
+  if (!sigillabile) { V.classList.add("no"); title = "Non sigillabile"; sub = "Vedi i requisiti non rispettati."; esito = "Non sigillabile"; }
+  else if (cons) { V.classList.add("auto"); title = "Sigillo automatico"; sub = "La creatura è consenziente: nessuna prova."; esito = "Automatico"; }
+  else if (need <= 1) { V.classList.add("ok"); title = "Riuscita certa"; sub = `Il bonus ${fmt(bonus)} supera la CD con qualsiasi tiro.`; esito = "Certa"; }
+  else if (need > 20) { V.classList.add("no"); title = "Impossibile per ora"; sub = `Servirebbe ${need} sul d20: aumenta i bonus o abbassa la CD.`; esito = "Impossibile"; }
+  else { V.classList.add("ok"); title = `Serve ${need} o più sul d20`; sub = `Bonus ${fmt(bonus)} contro CD ${cd}.`; esito = `${p}%`; }
+  $("r-cd").textContent = sigillabile && cons ? "—" : cd;
+  $("r-title").textContent = title; $("r-sub").textContent = " " + sub;
+  $("r-perc").textContent = sigillabile ? `${p}%` : "—";
+  $("r-bar").style.width = (sigillabile ? p : 0) + "%";
+  $("d-cd").textContent = cd; $("d-need").textContent = sigillabile && !cons && need > 1 && need <= 20 ? `d20 ≥ ${need}` : "";
+  $("d-esito").textContent = esito;
+
+  // note
+  const note = [];
+  if (sigillabile && !cons && $("d-resistente").checked) note.push("Carta resistente: se la prova fallisce di 5 o meno, la carta non va distrutta.");
+  if (sigillabile && !cons && S.liv >= 10) note.push("Secondo tentativo: una volta al giorno puoi ripetere una prova fallita.");
+  if (sigillabile && !cons) note.push("Se la prova fallisce, la carta va distrutta.");
+  note.push("Una creatura affascinata non conta come consenziente.");
+  $("r-note").innerHTML = note.map(t => `<li class="info">${t}</li>`).join("");
+
+  renderScheda(S, gs, legame(S, gs));
+  salva();
+}
+
+// ------- importazione -------
+function parseStat(txt) {
+  const t = txt.replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-");
+  const g = (re, i = 1) => { const m = t.match(re); return m ? m[i].trim() : ""; };
+  const d = {};
+  const head = t.split(/\n\s*(?:DIFESA|Difesa)\s*\n|\bCA\b/)[0] || t;
+  // nome e GS: stessa riga ("Lupo GS 1", anche senza spazio "LupoGS 1") oppure nome sulla riga sopra
+  const FR = { "½": "1/2", "⅓": "1/3", "¼": "1/4", "⅙": "1/6", "⅛": "1/8" };
+  const GSV = "(\\d+\\s*\\/\\s*\\d+|\\d+|[½⅓¼⅙⅛])";
+  const mNome = t.match(new RegExp("^[ \\t]*([^\\n]*?[^\\s\\d])[ \\t]*(?:GS|Grado di Sfida)[ \\t]*:?[ \\t]*" + GSV, "m"))
+             || t.match(new RegExp("^[ \\t]*([^\\n]{2,60}?)[ \\t]*\\n+[ \\t]*(?:GS|Grado di Sfida)[ \\t]*:?[ \\t]*" + GSV, "m"));
+  let nome = mNome ? mNome[1].trim() : "";
+  if (nome.length > 60 || /[.!?]\s/.test(nome)) nome = nome.split(/[.!?]\s+/).pop().trim();   // descrizione incollata sulla stessa riga
+  nome = nome.replace(/^(?:Statistiche|Scheda)\s*:?\s*/i, "").replace(/[\s:;,–-]+$/, "");
+  if (!nome) { const r = t.split("\n").map(x => x.trim()).find(x => x && x.length <= 40 && !/\d/.test(x) && !/:/.test(x)); nome = r || ""; }
+  d.nome = nome; d.gs = mNome ? (FR[mNome[2]] || mNome[2].replace(/\s/g, "")) : "";
+  d.pe = g(/\bPE\s*:?\s*([\d.]+)/);
+  const catLine = (t.match(/Categoria\s*:?\s*([^\n]+)/i) || [])[1];
+  const zona = catLine || head.split("\n").filter(l => l.length < 90).join("\n");
+  for (const tp of TIPI) { const re = new RegExp("\\b" + tp + "\\b(\\s*\\(([^)]*)\\))?", catLine ? "i" : ""); const m = zona.match(re); if (m) { d.tipo = tp; d.sotto = m[2] || ""; break; } }
+  d.taglia = (zona.match(/\b(Piccolissim[ao]|Minut[ao]|Minuscol[ao]|Piccol[ao]|Medi[ao]|Grande|Enorme|Mastodontic[ao]|Colossale)\b/i) || [,""])[1];
+  const allLine = (t.match(/Allineamento\s*:?\s*([^\n]+)/i) || [])[1] || zona;
+  d.all = (allLine.match(/\b(LB|NB|CB|LN|CN|LM|NM|CM|N)\b/) || [,""])[1];
+  d.iniz = g(/Iniz(?:iativa)?\s*:?\s*([+-]?\d+)/i);
+  d.sensi = g(/Sensi\s*:?\s*([^\n]+)/i);
+  d.ca = g(/^\s*CA\s*:?\s*([^\n]+)/m);
+  const pf = t.match(/\b(?:pf|PF|Punti Ferita)\s*:?\s*(\d+)\s*\(([^)]*)\)/);
+  if (pf) { d.pf = +pf[1]; d.pfdadi = pf[2]; d.dv = [...pf[2].matchAll(/(\d+)\s*d\s*\d+/gi)].reduce((a, m) => a + +m[1], 0); }
+  d.temp = g(/(?:Tempra|Temp)\s*:?\s*([+-]?\d+)/); d.rifl = g(/(?:Riflessi|Rifl)\s*:?\s*([+-]?\d+)/); d.vol = g(/(?:Volontà|Vol)\s*:?\s*([+-]?\d+)/);
+  d.difese = [...t.matchAll(/^\s*((?:RD|Immunità|Resistenze|RI|Capacità Difensive|Debolezze|Capacità Difensive)\b[^\n]*)/gmi)].map(m => m[1].trim()).join("; ");
+  d.vel = g(/Velocità\s*:?\s*([^\n]+)/i);
+  d.mischia = g(/Mischia\s*:?\s*([^\n]+)/i); d.distanza = g(/Distanza\s*:?\s*([^\n]+)/i);
+  d.spazio = g(/Spazio\s*:?\s*([^\n]+)/i);
+  d.attsp = g(/Attacchi Speciali\s*:?\s*([^\n]+)/i);
+  const mag = t.match(/(Capacità Magiche[^\n]*(?:\n(?!\s*(?:STATISTICHE|Statistiche|Caratteristiche|For(?:za)?\s*:?\s*\d)).+)*)/i);
+  d.magiche = mag ? mag[1].trim() : "";
+  const car = (full, ab) => { const m = t.match(new RegExp("\\b(?:" + full + "|" + ab + ")\\b\\s*:?\\s*(\\d+|—|–|-)")); return m ? (/^\d+$/.test(m[1]) ? +m[1] : null) : undefined; };
+  d.car = { For: car("Forza", "For"), Des: car("Destrezza", "Des"), Cos: car("Costituzione", "Cos"), Int: car("Intelligenza", "Int"), Sag: car("Saggezza", "Sag"), Car: car("Carisma", "Car") };
+  d.bab = g(/(?:Bonus di Attacco Base|Attacco Base|Att Base|BAB)\s*:?\s*([+-]?\d+)/i);
+  d.bmc = g(/BMC\s*:?\s*([^;\n]+)/); d.dmc = g(/DMC\s*:?\s*([^;\n]+)/);
+  d.talenti = g(/Talenti\s*:?\s*([^\n]+)/i);
+  d.abilita = g(/^\s*Abilità\s*:?\s*([^\n]+)/m);
+  d.linguaggi = g(/Linguaggi\s*:?\s*([^\n]+)/i);
+  d.qs = g(/Qualità Speciali\s*:?\s*([^\n]+)/i);
+  d.razziali = g(/Modificatori Razziali\s*:?\s*([^\n]+)/i);
+  const cs = t.match(/^\s*Capacità Speciali\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:Ambiente|ECOLOGIA|Ecologia|Organizzazione|Tesoro)\b|$)/m);
+  d.speciali = cs ? cs[1].trim() : "";
+  return d;
+}
+function compila(d, fonte) {
+  const m = $("m-import"); m.hidden = false;
+  if (!d.nome && !d.pf && !d.tipo) { m.className = "msg no"; m.textContent = "Non ho riconosciuto una scheda: controlla di aver copiato il blocco statistiche completo, dal nome con il GS fino alle capacità speciali."; return; }
+  parsed = d;
+  if (d.nome) $("c-nome").value = d.nome;
+  if (d.gs) $("c-gs").value = d.gs;
+  if (d.tipo) $("c-tipo").value = d.tipo;
+  $("c-sotto").value = d.sotto || "";
+  if (d.dv) $("c-dv").value = d.dv;
+  if (d.pf) { $("c-pfmax").value = d.pf; }
+  if (d.car && d.car.Int !== undefined) $("c-int").value = d.car.Int === null ? "" : d.car.Int;
+  const manca = [["nome", d.nome], ["GS", d.gs], ["tipo", d.tipo], ["PF", d.pf], ["Intelligenza", d.car && d.car.Int !== undefined]].filter(x => !x[1]).map(x => x[0]);
+  m.className = manca.length ? "msg warn" : "msg ok";
+  m.textContent = (manca.length ? `Compilata da ${fonte}. Da completare a mano: ${manca.join(", ")}.` : `Compilata da ${fonte}: ${d.nome}, ${d.tipo}, GS ${d.gs}, ${d.dv} DV.`) + " La rarità va scelta a mano.";
+  calcola();
+}
+
+// ------- scheda -------
+function sheetData(S, gs, L) {
+  const d = parsed || {};
+  const g = L.g, dv = num("c-dv", 0);
+  const addN = v => (v === "" || v == null || isNaN(parseInt(v))) ? "—" : fmt(parseInt(v) + g);
+  let ca = d.ca || "";
+  const caM = ca.match(/^(\d+)(.*?impreparat[oa]\s*)(\d+)(.*)$/i);
+  const caTxt = caM ? `${+caM[1] + g}${caM[2]}${+caM[3] + g}${caM[4]}` : (ca || "—");
+  return {
+    nome: $("c-nome").value || "Creatura", soprannome: $("p-soprannome").value.trim(),
+    riga: [d.all, $("c-tipo").value + ($("c-sotto").value ? ` (${$("c-sotto").value})` : ""), d.taglia].filter(Boolean).join(" "),
+    gs: $("c-gs").value, dv, pf: num("c-pfmax", 0) + g * dv, pfBase: num("c-pfmax", 0), split: dividi(num("c-pfmax", 0) + g * dv),
+    iniz: d.iniz || "—", sensi: d.sensi || "—", ca: caTxt,
+    ts: `Tempra ${addN(d.temp)}, Riflessi ${addN(d.rifl)}, Volontà ${addN(d.vol)}`,
+    difese: d.difese, vel: d.vel || "—", mischia: d.mischia, distanza: d.distanza, spazio: d.spazio, attsp: d.attsp, magiche: d.magiche,
+    car: d.car || {}, bab: d.bab, bmc: d.bmc, dmc: d.dmc, talenti: d.talenti, abilita: d.abilita, linguaggi: d.linguaggi, qs: d.qs, speciali: d.speciali,
+    L, S, mat: $("p-mat").value.trim(), note: $("p-note").value.trim()
+  };
+}
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+function renderScheda(S, gs, L) {
+  const x = sheetData(S, gs, L);
+  const car = ["For","Des","Cos","Int","Sag","Car"].map(k => { const v = x.car[k]; return `<div><span>${k.toUpperCase()}</span><b>${v === undefined ? "—" : v === null ? "—" : v + " (" + fmt(mod(v)) + ")"}</b></div>`; }).join("");
+  const line = (lab, val) => val ? `<p><span class="lab">${lab}</span> ${esc(val)}</p>` : "";
+  const bonusAtt = x.L.g ? ` <em>(+${x.L.g} al tiro per colpire e ai danni per il Legame)</em>` : "";
+  $("sheet").innerHTML = `
+    <header><h2>${esc(x.soprannome ? x.soprannome + " · " : "")}${esc(x.nome)}</h2>
+      <div class="meta">GS ${esc(x.gs)} · ${esc(x.riga)} · ${x.dv} DV</div></header>
+    <div class="legame">
+      <p><span class="lab">Legame</span> Divario ${x.L.div} · grado ${x.L.g}${x.L.extra.length ? " (" + x.L.extra.join(", ") + ")" : ""}${x.L.g ? ` · +${x.L.g} TxC e danni, +${x.L.g} armatura naturale, +${x.L.g} TS, +${x.L.g} PF/DV` : ""}</p>
+      <p><span class="lab">Round di richiamo</span> ${x.S.round} · <span class="lab">Comando speciale</span> ${x.S.comando} · <span class="lab">Sigillatore</span> ${x.S.liv}° livello</p>
+      ${x.mat ? `<p><span class="lab">Maturazioni</span> ${esc(x.mat)}</p>` : ""}
+    </div>
+    <div class="blk"><h3>Difesa</h3>
+      ${line("CA", x.ca)}<p><span class="lab">Punti Fatica</span> ${x.split.fat} · <span class="lab">Punti Ferita</span> ${x.split.fer} <span class="note">(totale ${x.pf}${x.L.g ? `: ${x.pfBase} + ${x.L.g * x.dv} Legame` : ""})</span></p>
+      ${line("Tiri Salvezza", x.ts)}${line("Difese", x.difese)}</div>
+    <div class="blk"><h3>Attacco</h3>
+      ${line("Velocità", x.vel)}${x.mischia ? `<p><span class="lab">Mischia</span> ${esc(x.mischia)}${bonusAtt}</p>` : ""}${x.distanza ? `<p><span class="lab">Distanza</span> ${esc(x.distanza)}${bonusAtt}</p>` : ""}
+      ${line("Spazio", x.spazio)}${line("Attacchi Speciali", x.attsp)}${x.magiche ? `<p class="pre">${esc(x.magiche)}</p>` : ""}</div>
+    <div class="blk"><h3>Statistiche</h3><div class="stats6">${car}</div>
+      ${line("Iniziativa", x.iniz)}${line("Sensi", x.sensi)}${line("BAB", x.bab)}${line("BMC", x.bmc)}${line("DMC", x.dmc)}
+      ${line("Talenti", x.talenti)}${line("Abilità", x.abilita)}${line("Linguaggi", x.linguaggi)}${line("Qualità Speciali", x.qs)}</div>
+    ${x.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(x.speciali)}</p></div>` : ""}
+    ${x.note ? `<div class="blk"><h3>Note</h3><p class="pre">${esc(x.note)}</p></div>` : ""}
+    ${parsed ? "" : `<p class="note">Importa una scheda per riempire difese, attacchi e statistiche.</p>`}`;
+}
+
+// ------- PDF -------
+const pdfSafe = s => String(s ?? "").replace(/−/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
+function creaPDF() {
+  const S = sig(), gs = parseGS($("c-gs").value), L = legame(S, gs);
+  const manuale = $("p-manuale").checked, pre = $("p-precompila").checked;
+  const x = sheetData(S, gs, manuale ? { div: L.div, g: 0, extra: [] } : L);
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = 210, M = 16, CW = W - 2 * M; let y = 18;
+  const nuovaPag = h => { if (y + h > 282) { doc.addPage(); y = 18; } };
+  const testo = (t, size = 10, style = "normal", color = [30, 35, 43]) => {
+    doc.setFont("helvetica", style); doc.setFontSize(size); doc.setTextColor(...color);
+    const righe = doc.splitTextToSize(pdfSafe(t), CW); righe.forEach(r => { nuovaPag(size * .45); doc.text(r, M, y); y += size * .45; });
+  };
+  const campo = (lab, val) => { if (!val) return; doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+    const w = doc.getTextWidth(pdfSafe(lab) + " "); const righe = doc.splitTextToSize(pdfSafe(val), CW - w);
+    nuovaPag(5); doc.setTextColor(30, 35, 43); doc.text(pdfSafe(lab), M, y); doc.setFont("helvetica", "normal");
+    righe.forEach((r, i) => { if (i) nuovaPag(4.6); doc.text(r, M + (i ? 0 : w), y); y += 4.6; }); };
+  const titolo = t => { y += 2; nuovaPag(10); doc.setDrawColor(168, 122, 31); doc.setLineWidth(.4); doc.line(M, y, W - M, y); y += 5;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(14, 106, 102); doc.text(pdfSafe(t).toUpperCase(), M, y); y += 5.5; };
+  doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(30, 35, 43);
+  doc.text(pdfSafe((x.soprannome ? x.soprannome + " - " : "") + x.nome), M, y); y += 7;
+  testo(`GS ${x.gs} - ${x.riga} - ${x.dv} DV`, 10.5, "normal", [86, 96, 107]);
+  if (manuale) {
+    y += 2; const top = y, H = 38;
+    doc.setFillColor(251, 244, 228); doc.setDrawColor(168, 122, 31); doc.roundedRect(M, top, CW, H, 2, 2, "FD");
+    const campoForm = (lab, nomeCampo, valore, cx, cy, w) => {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(30, 35, 43); doc.text(pdfSafe(lab), cx, cy);
+      const lx = cx + doc.getTextWidth(pdfSafe(lab)) + 2, lw = w - (lx - cx);
+      doc.setDrawColor(120, 110, 90); doc.setLineWidth(.25); doc.line(lx, cy + 1, lx + lw, cy + 1);
+      try {
+        const tf = new doc.AcroFormTextField(); tf.fieldName = nomeCampo; tf.Rect = [lx, cy - 4.2, lw, 5.4];
+        tf.fontSize = 10; tf.value = pre ? pdfSafe(valore) : ""; doc.addField(tf);
+      } catch (e) { if (pre) { doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.text(pdfSafe(valore), lx + 1, cy); } }
+    };
+    const c3 = CW / 3;
+    campoForm("Livello sigillatore", "livello", `${S.liv}°`, M + 4, top + 7, c3 - 6);
+    campoForm("Grado di Legame", "legame", String(L.g), M + 4 + c3, top + 7, c3 - 6);
+    campoForm("Round di richiamo", "richiamo", String(S.round), M + 4 + 2 * c3, top + 7, c3 - 8);
+    campoForm("Comando speciale", "comando", S.comando, M + 4, top + 14.5, CW - 8);
+    campoForm("Maturazioni", "maturazioni", $("p-mat").value.trim(), M + 4, top + 22, CW - 8);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(86, 96, 107);
+    doc.splitTextToSize(pdfSafe("Ogni grado di Legame: +1 ai tiri per colpire e ai danni, +1 all'armatura naturale (CA), +1 ai Tiri Salvezza, +1 PF per DV (metà Punti Fatica, metà Punti Ferita). Le statistiche qui sotto sono quelle base, senza Legame."), CW - 8)
+      .forEach((r, i) => doc.text(r, M + 4, top + 29 + i * 3.7));
+    y = top + H + 3;
+  } else {
+    y += 2; doc.setFillColor(251, 244, 228); doc.setDrawColor(168, 122, 31); doc.roundedRect(M, y, CW, x.mat ? 20 : 15, 2, 2, "FD"); y += 5.5;
+    const ly0 = y; doc.setFontSize(10);
+    campo("Legame", `Divario ${x.L.div}, grado ${x.L.g}${x.L.extra.length ? " (" + x.L.extra.join(", ") + ")" : ""}${x.L.g ? `: +${x.L.g} TxC e danni, +${x.L.g} armatura naturale, +${x.L.g} TS, +${x.L.g} PF/DV` : ""}`);
+    campo("Richiamo", `${x.S.round} round - comando speciale: ${x.S.comando} - sigillatore di ${x.S.liv}° livello`);
+    if (x.mat) campo("Maturazioni", x.mat);
+    y = ly0 + (x.mat ? 16 : 11);
+  }
+  titolo("Difesa"); campo("CA", x.ca); campo("Punti Fatica", `${x.split.fat}  -  Punti Ferita ${x.split.fer}  (totale ${x.pf}${x.L.g ? `: ${x.pfBase} + ${x.L.g * x.dv} Legame` : ""})`); campo("Tiri Salvezza", x.ts); campo("Difese", x.difese);
+  titolo("Attacco"); campo("Velocità", x.vel);
+  const ba = manuale ? " [+ grado di Legame a TxC e danni]" : x.L.g ? ` [+${x.L.g} TxC e danni per il Legame]` : "";
+  if (x.mischia) campo("Mischia", x.mischia + ba); if (x.distanza) campo("Distanza", x.distanza + ba);
+  campo("Spazio", x.spazio); campo("Attacchi Speciali", x.attsp); if (x.magiche) testo(x.magiche);
+  titolo("Statistiche");
+  campo("Caratteristiche", ["For","Des","Cos","Int","Sag","Car"].map(k => `${k} ${x.car[k] == null ? "-" : x.car[k]}`).join(", "));
+  campo("Iniziativa", x.iniz); campo("Sensi", x.sensi); campo("BAB", x.bab); campo("BMC", x.bmc); campo("DMC", x.dmc);
+  campo("Talenti", x.talenti); campo("Abilità", x.abilita); campo("Linguaggi", x.linguaggi); campo("Qualità Speciali", x.qs);
+  if (x.speciali) { titolo("Capacità speciali"); x.speciali.split("\n").filter(Boolean).forEach(p => { testo(p); y += 1; }); }
+  if (x.note) { titolo("Note"); testo(x.note); }
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120, 120, 120); doc.text(pdfSafe(`Banco del Sigillatore - Collana v2.4 - pagina ${i}/${n}`), W / 2, 291, { align: "center" }); }
+  return { blob: doc.output("blob"), nome: `Scheda_${(x.soprannome || x.nome).replace(/[^\wÀ-ÿ]+/g, "_")}.pdf` };
+}
+
+// ------- esportazione verso il Mazzo -------
+function esportazione() {
+  const intRaw = $("c-int").value.trim();
+  return JSON.stringify({
+    formato: "banco-sigillatore/creatura", versione: 1, esportatoIl: new Date().toISOString().slice(0, 10),
+    creatura: {
+      nome: $("c-nome").value.trim() || "Creatura", soprannome: $("p-soprannome").value.trim(),
+      tipo: $("c-tipo").value, sotto: $("c-sotto").value.trim(), gs: $("c-gs").value.trim(),
+      dv: num("c-dv", 0), pf: num("c-pfmax", 0), int: intRaw === "" ? null : (parseInt(intRaw, 10) || 0),
+      rarita: $("c-rarita").selectedOptions[0].textContent, carta: $("s-carta").value,
+      maturazioni: $("p-mat").value.split(",").map(x => x.trim()).filter(Boolean), note: $("p-note").value.trim(),
+      stat: parsed || {}
+    }
+  });
+}
+$("b-copia").addEventListener("click", async () => {
+  const txt = esportazione(), m = $("m-export"), ta = $("t-export"); m.hidden = false;
+  try { await navigator.clipboard.writeText(txt); ta.hidden = true; m.className = "msg ok"; m.textContent = "Copiata: nel Mazzo premi Aggiungi creatura e incolla."; }
+  catch (e) { ta.hidden = false; ta.value = txt; ta.focus(); ta.select(); m.className = "msg warn"; m.textContent = "La copia automatica non è riuscita: il testo è selezionato qui sopra, copialo a mano."; }
+});
+$("b-json").addEventListener("click", async () => {
+  const m = $("m-export"); m.hidden = false; const nome = `Mazzo_${($("p-soprannome").value.trim() || $("c-nome").value.trim() || "creatura").replace(/[^\wÀ-ÿ]+/g, "_")}.json`;
+  try {
+    if (desk && desk.salvaFile) { await desk.salvaFile(nome, new TextEncoder().encode(esportazione()).buffer); m.className = "msg ok"; m.textContent = `File salvato: ${nome}`; return; }
+    if (!downloads) { m.className = "msg warn"; m.textContent = "In questa vista il download non è disponibile: usa Copia per il Mazzo."; return; }
+    await downloads.save({ filename: nome, data: esportazione() }); m.className = "msg ok"; m.textContent = `File pronto: ${nome}`;
+  } catch (e) { m.className = "msg warn"; m.textContent = e && e.code === "declined" ? "Download annullato." : "Il download non è riuscito: usa Copia per il Mazzo."; }
+});
+
+// ------- eventi -------
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t === b));
+  $("view-cattura").hidden = b.id !== "tab-cattura"; $("view-scheda").hidden = b.id !== "tab-scheda";
+  try { localStorage.setItem(KEY + "-tab", b.id); } catch (e) {}
+}));
+$("s-arch").addEventListener("change", () => { $("w-stirpe").hidden = $("s-arch").value !== "stirpe"; });
+$("s-liv").addEventListener("input", aggiornaCarte);
+document.querySelectorAll("input,select,textarea").forEach(el => { if (el.id !== "i-testo" && el.id !== "i-link") el.addEventListener("input", calcola); el.addEventListener("change", () => { if (el.id !== "i-testo" && el.id !== "i-link") calcola(); }); });
+$("b-compila").addEventListener("click", () => compila(parseStat($("i-testo").value), "la scheda incollata"));
+$("b-svuota").addEventListener("click", () => { $("i-testo").value = ""; $("n-esempio").hidden = true; $("i-testo").focus(); });
+$("i-testo").addEventListener("input", () => { $("n-esempio").hidden = true; });
+
+// link: attivo solo nella versione desktop, che espone window.sigillatoreDesktop.fetchPagina(url) -> testo
+const desk = window.sigillatoreDesktop;
+if (desk && desk.fetchPagina) { $("n-link").textContent = "Incolla il link della creatura su golarion.altervista.org e premi Compila dal link."; }
+else { $("b-link").disabled = true; }
+$("b-link").addEventListener("click", async () => {
+  const url = $("i-link").value.trim(); const m = $("m-import"); m.hidden = false;
+  if (!/^https?:\/\/golarion\.altervista\.org\//i.test(url)) { m.className = "msg no"; m.textContent = "Il link deve essere una pagina di golarion.altervista.org."; return; }
+  try { m.className = "msg"; m.textContent = "Scarico la pagina…"; const txt = await desk.fetchPagina(url); $("i-testo").value = txt; compila(parseStat(txt), "il link"); }
+  catch (e) { m.className = "msg no"; m.textContent = "Non riesco a scaricare la pagina: controlla il link e la connessione."; }
+});
+
+// PDF: nel browser tramite il permesso di download della pagina; nella versione desktop tramite salvataggio nativo
+let downloads = null;
+if (window.claude && window.claude.use) window.claude.use("downloads").then(d => { downloads = d; if (!d && !(desk && desk.salvaFile)) { $("b-pdf").disabled = true; const m = $("m-pdf"); m.hidden = false; m.className = "msg warn"; m.textContent = "In questa vista il download non è disponibile."; } });
+$("b-pdf").addEventListener("click", async () => {
+  const m = $("m-pdf"); m.hidden = false;
+  if (!window.jspdf) { m.className = "msg no"; m.textContent = "La libreria PDF non si è caricata: ricarica la pagina."; return; }
+  const { blob, nome } = creaPDF();
+  try {
+    if (desk && desk.salvaFile) { await desk.salvaFile(nome, await blob.arrayBuffer()); m.className = "msg ok"; m.textContent = `Scheda salvata: ${nome}`; return; }
+    if (!downloads) { m.className = "msg warn"; m.textContent = "In questa vista il download non è disponibile."; return; }
+    await downloads.save({ filename: nome, data: blob }); m.className = "msg ok"; m.textContent = `Scheda pronta: ${nome}`;
+  } catch (e) {
+    m.className = "msg warn"; m.textContent = e && e.code === "declined" ? "Download annullato." : "Il download non è riuscito: riprova tra qualche secondo.";
+  }
+});
+
+// avvio
+carica(); aggiornaCarte(); $("w-stirpe").hidden = $("s-arch").value !== "stirpe";
+$("i-testo").value = ESEMPIO;
+compila(parseStat(ESEMPIO), "l’esempio");
+$("m-import").className = "msg warn"; $("m-import").textContent = "Esempio precaricato (Lupo, rarità Comune, 13 PF divisi in 6 Punti Fatica e 7 Punti Ferita): incolla la scheda della tua creatura e premi Compila dalla scheda.";
+try { const tb = localStorage.getItem(KEY + "-tab"); if (tb && $(tb)) $(tb).click(); } catch (e) {}
+})();
+</script>
+
+</body>
+</html>

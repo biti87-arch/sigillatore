@@ -1,0 +1,51 @@
+name: Crea APK Android
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Installa dipendenze
+        run: npm ci
+
+      - name: Sincronizza le pagine nell'app
+        run: npx cap sync android
+
+      - name: Compila l'APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Rinomina l'APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk Sigillatore-${{ github.run_number }}.apk
+
+      - name: Pubblica la release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Sigillatore 1.0.${{ github.run_number }}
+          body: APK da installare sul telefono Android. Scaricalo dal telefono e aprilo per installarlo.
+          files: Sigillatore-${{ github.run_number }}.apk
+          make_latest: true
