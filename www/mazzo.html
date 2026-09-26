@@ -212,8 +212,13 @@ const MODELLI = [
 const MOD_LIV = { "Avanzato": 4, "Gigante": 4, "Stirpe superiore": 4, "Celestiale": 8, "Immondo": 8, "Entropico": 8, "Risoluto": 8, "Animale Fatato": 7, "Creatura Fatata": 7, "Creatura Mutante": 7, "Mezzo-Drago": 11, "Mezzo-Celestiale": 11, "Mezzo-Immondo": 11 };
 
 function parseStat(txt) {
-  const t = txt.replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-");
+  let t = String(txt || "").replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-");
+  // Golarion inserisce tra "Categoria" e "Iniziativa" i riquadri che descrivono tipo e sottotipo: vanno ignorati
+  const mCat = t.match(/^[ \t]*Categoria\b[^\n]*\n/m), mIni = t.match(/^[ \t]*Iniz(?:iativa)?\b/m);
+  if (mCat && mIni && mIni.index > mCat.index) t = t.slice(0, mCat.index + mCat[0].length) + t.slice(mIni.index);
   const g = (re, i = 1) => { const m = t.match(re); return m ? m[i].trim() : ""; };
+  // etichetta vera: a inizio riga o dopo un punto e virgola, con la maiuscola (le descrizioni non contano)
+  const L = (lab, val = "([^\\n]+)") => g(new RegExp("(?:^|;)[ \\t]*(?:" + lab + ")(?![\\wÀ-ÿ])[ \\t]*:?[ \\t]*\\n?[ \\t]*" + val, "m"));
   const d = {};
   const head = t.split(/\n\s*(?:DIFESA|Difesa)\s*\n|\bCA\b/)[0] || t;
   // nome e GS: stessa riga ("Lupo GS 1", anche senza spazio "LupoGS 1") oppure nome sulla riga sopra
@@ -227,36 +232,36 @@ function parseStat(txt) {
   if (!nome) { const r = t.split("\n").map(x => x.trim()).find(x => x && x.length <= 40 && !/\d/.test(x) && !/:/.test(x)); nome = r || ""; }
   d.nome = nome; d.gs = mNome ? (FR[mNome[2]] || mNome[2].replace(/\s/g, "")) : "";
   d.pe = g(/\bPE\s*:?\s*([\d.]+)/);
-  const catLine = (t.match(/Categoria\s*:?\s*([^\n]+)/i) || [])[1];
+  const catLine = (t.match(/^[ \t]*Categoria\s*:?\s*([^\n]+)/m) || [])[1];
   const zona = catLine || head.split("\n").filter(l => l.length < 90).join("\n");
   for (const tp of TIPI) { const re = new RegExp("\\b" + tp + "\\b(\\s*\\(([^)]*)\\))?", catLine ? "i" : ""); const m = zona.match(re); if (m) { d.tipo = tp; d.sotto = m[2] || ""; break; } }
   d.taglia = (zona.match(/\b(Piccolissim[ao]|Minut[ao]|Minuscol[ao]|Piccol[ao]|Medi[ao]|Grande|Enorme|Mastodontic[ao]|Colossale)\b/i) || [,""])[1];
-  const allLine = (t.match(/Allineamento\s*:?\s*([^\n]+)/i) || [])[1] || zona;
+  const allLine = (t.match(/^[ \t]*Allineamento\s*:?\s*([^\n]+)/m) || [])[1] || zona;
   d.all = (allLine.match(/\b(LB|NB|CB|LN|CN|LM|NM|CM|N)\b/) || [,""])[1];
-  d.iniz = g(/Iniz(?:iativa)?\s*:?\s*([+-]?\d+)/i);
-  d.sensi = g(/Sensi\s*:?\s*([^\n]+)/i);
+  d.iniz = g(/Iniz(?:iativa)?\s*:?\s*([+-]?\d+)/);
+  d.sensi = L("Sensi");
   d.ca = g(/^\s*CA\s*:?\s*([^\n]+)/m);
   const pf = t.match(/\b(?:pf|PF|Punti Ferita)\s*:?\s*(\d+)\s*\(([^)]*)\)/);
   if (pf) { d.pf = +pf[1]; d.pfdadi = pf[2]; d.dv = [...pf[2].matchAll(/(\d+)\s*d\s*\d+/gi)].reduce((a, m) => a + +m[1], 0); }
   d.temp = g(/(?:Tempra|Temp)\s*:?\s*([+-]?\d+)/); d.rifl = g(/(?:Riflessi|Rifl)\s*:?\s*([+-]?\d+)/); d.vol = g(/(?:Volontà|Vol)\s*:?\s*([+-]?\d+)/);
-  d.difese = [...t.matchAll(/^\s*((?:RD|Immunità|Resistenze|RI|Capacità Difensive|Debolezze|Capacità Difensive)\b[^\n]*)/gmi)].map(m => m[1].trim()).join("; ");
-  d.vel = g(/Velocità\s*:?\s*([^\n]+)/i);
-  d.mischia = g(/Mischia\s*:?\s*([^\n]+)/i); d.distanza = g(/Distanza\s*:?\s*([^\n]+)/i);
-  d.spazio = g(/Spazio\s*:?\s*([^\n]+)/i);
-  d.attsp = g(/Attacchi Speciali\s*:?\s*([^\n]+)/i);
-  const mag = t.match(/(Capacità Magiche[^\n]*(?:\n(?!\s*(?:STATISTICHE|Statistiche|Caratteristiche|For(?:za)?\s*:?\s*\d)).+)*)/i);
+  d.difese = [...t.matchAll(/^[ \t]*((?:RD|Immunità|Resistenze|RI|Capacità Difensive|Debolezze)\b[^\n]*)/gm)].map(m => m[1].trim()).join("; ");
+  d.vel = L("Velocità");
+  d.mischia = L("Mischia"); d.distanza = L("Distanza");
+  d.spazio = L("Spazio", "([^\\n;]+)"); d.portata = L("Portata", "([^\\n;]+)");
+  d.attsp = L("Attacchi Speciali");
+  const mag = t.match(/^[ \t]*(Capacità Magiche[^\n]*(?:\n(?![ \t]*(?:STATISTICHE|Statistiche|Caratteristiche|Incantesimi|Spazio|Portata|Attacchi|Bonus di Attacco|For(?:za)?\s*:?\s*\d)).+)*)/m);
   d.magiche = mag ? mag[1].trim() : "";
   const car = (full, ab) => { const m = t.match(new RegExp("\\b(?:" + full + "|" + ab + ")\\b\\s*:?\\s*(\\d+|—|–|-)")); return m ? (/^\d+$/.test(m[1]) ? +m[1] : null) : undefined; };
   d.car = { For: car("Forza", "For"), Des: car("Destrezza", "Des"), Cos: car("Costituzione", "Cos"), Int: car("Intelligenza", "Int"), Sag: car("Saggezza", "Sag"), Car: car("Carisma", "Car") };
-  d.bab = g(/(?:Bonus di Attacco Base|Attacco Base|Att Base|BAB)\s*:?\s*([+-]?\d+)/i);
+  d.bab = g(/(?:Bonus di Attacco Base|Attacco Base|Att Base|BAB)\s*:?\s*([+-]?\d+)/);
   d.bmc = g(/BMC\s*:?\s*([^;\n]+)/); d.dmc = g(/DMC\s*:?\s*([^;\n]+)/);
-  d.talenti = g(/Talenti\s*:?\s*([^\n]+)/i);
-  d.abilita = g(/^\s*Abilità\s*:?\s*([^\n]+)/m);
-  d.linguaggi = g(/Linguaggi\s*:?\s*([^\n]+)/i);
-  d.qs = g(/Qualità Speciali\s*:?\s*([^\n]+)/i);
-  d.razziali = g(/Modificatori Razziali\s*:?\s*([^\n]+)/i);
-  const cs = t.match(/^\s*Capacità Speciali\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:Ambiente|ECOLOGIA|Ecologia|Organizzazione|Tesoro)\b|$)/m);
-  d.speciali = cs ? cs[1].trim() : "";
+  d.talenti = L("Talenti");
+  d.abilita = g(/^[ \t]*Abilità\s*:?\s*([^\n]+)/m);
+  d.linguaggi = L("Linguaggi");
+  d.qs = L("Qualità Speciali");
+  d.razziali = L("Modificatori Razziali");
+  const cs = t.match(/^[ \t]*(?:Capacità Speciali|CAPACITÀ SPECIALI)[ \t]*:?[ \t]*\n([\s\S]*?)(?=\n[ \t]*(?:Ambiente|ECOLOGIA|Ecologia|Organizzazione|Tesoro|DESCRIZIONE|Descrizione)\b|(?![\s\S]))/m);
+  d.speciali = cs ? cs[1].replace(/\n{3,}/g, "\n\n").trim() : "";
   return d;
 }
 
@@ -574,7 +579,7 @@ function ritoccaCA(str, dNat, dDes, dT, arm) {
 function ritoccaNum(str, d, tutti) {
   if (!str || !d) return str;
   if (tutti) return str.replace(/^(\s*)(\d+)/, (m, sp, n) => sp + (+n + d)).replace(/(\()(\d+)(\s+contro)/g, (m, a, n, b) => a + (+n + d) + b);
-  return str.replace(/[+-]?\d+/, n => segno(parseInt(n) + d));
+  return str.replace(/^(\s*)([+-]?\d+)/, (m, sp, n) => sp + segno(parseInt(n) + d)).replace(/\(([+-]\d+)(\s)/g, (m, n, sp) => "(" + segno(parseInt(n) + d) + sp);
 }
 function ritoccaAbil(str, e, dStep) {
   const trova = nome => AB_KEYS.find(k => nome.toLowerCase().startsWith(k.toLowerCase()));
@@ -621,6 +626,7 @@ function ritoccaVel(str, e, liv) {
   return out;
 }
 // Scheda effettiva: statistiche base + maturazioni + grado di Legame g
+const spazioPortata = x => [x.spazio, x.portata ? "Portata " + x.portata : ""].filter(Boolean).join("; ");
 function scheda(c, g) {
   const s = c.stat || {}, e = mat(c); e.dv = +c.dv || 0;
   const dm = e.dm, dT = T_ATT[e.t] - T_ATT[e.t0], dM = T_MAN[e.t] - T_MAN[e.t0], dStep = e.t - e.t0;
@@ -645,7 +651,7 @@ function scheda(c, g) {
   const ab = ritoccaAbil(s.abilita, e, dStep); o.abilita = ab.testo;
   o.sensi = ritoccaSensi(s.sensi, e.sensi, ab.perc, dm.Sag);
   o.vel = ritoccaVel(s.vel, e, D().liv);
-  if (dStep) o.spazio = `${SPAZIO[e.t]}; Portata: ${PORTATA[e.t]}`;
+  if (dStep) { o.spazio = SPAZIO[e.t]; o.portata = PORTATA[e.t]; }
   const dif = [s.difese, ...e.difese];
   if (e.ri.length) { const ri = Math.max(...e.ri.map(f => f(e.gs))), base = parseInt(((s.difese || "").match(/\bRI\s*(\d+)/) || [])[1] || 0); if (ri > base) dif.push(`RI ${ri}`); }
   o.difese = dif.filter(Boolean).join("; ");
@@ -808,6 +814,7 @@ function renderDettaglio() {
     </div>
     <div class="row">
       <span class="note">Round di richiamo: <b style="font-family:var(--f-num)">${i.roundR}/${i.round}</b></span>
+      <button class="btn small" id="x-sposta" ${ro}>${c.luogo === "archivio" ? "Porta nel mazzo" : "Sposta nell’archivio"}</button>
       <button class="btn small ghost" id="x-round" ${ro}>Usa 1 round</button><button class="btn small ghost" id="x-ricarica" ${ro}>Ricarica (1 minuto nella carta)</button>
     </div>
     <div class="checks">
@@ -841,10 +848,15 @@ function renderDettaglio() {
     <div class="blk"><h3>Difesa</h3>${line("CA", o.ca)}
       <p><span class="lab">Punti Fatica</span> ${i.fat} · <span class="lab">Punti Ferita</span> ${i.fer} <span class="note">(totale ${i.tot})</span></p>
       <p><span class="lab">Tiri Salvezza</span> Tempra ${tsv(o.temp)}, Riflessi ${tsv(o.rifl)}, Volontà ${tsv(o.vol)}</p>${line("Difese", o.difese)}</div>
-    <div class="blk"><h3>Attacco</h3>${line("Velocità", o.vel)}${line("Mischia", o.mischia)}${o.nuoviAtt ? `<p><span class="lab">Attacchi naturali della maturazione</span> ${esc(o.nuoviAtt)} <span class="note">(se la creatura ha già questi attacchi, usa il danno migliore)</span></p>` : ""}${line("Distanza", o.distanza)}${line("Spazio", o.spazio)}${line("Attacchi Speciali", o.attsp)}${o.magiche ? `<p class="pre">${esc(o.magiche)}</p>` : ""}</div>
+    <div class="blk"><h3>Attacco</h3>${line("Velocità", o.vel)}${line("Mischia", o.mischia)}${o.nuoviAtt ? `<p><span class="lab">Attacchi naturali della maturazione</span> ${esc(o.nuoviAtt)} <span class="note">(se la creatura ha già questi attacchi, usa il danno migliore)</span></p>` : ""}${line("Distanza", o.distanza)}${line("Attacchi Speciali", o.attsp)}${line("Spazio", spazioPortata(o))}${o.magiche ? `<p class="pre">${esc(o.magiche)}</p>` : ""}</div>
     <div class="blk"><h3>Statistiche</h3><div class="stats6">${CAR6.map(k => cella(k, car[k], e.attive ? (car0[k] ?? null) : undefined)).join("")}</div>
       ${line("Iniziativa", o.iniz)}${line("Sensi", o.sensi)}${line("BAB", o.bab)}${line("BMC", o.bmc)}${line("DMC", o.dmc)}${line("Talenti", o.talenti)}${line("Abilità", o.abilita)}${line("Linguaggi", o.linguaggi)}${line("Qualità Speciali", o.qs)}</div>
-    ${o.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(o.speciali)}</p></div>` : ""}
+    ${o.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(o.speciali).replace(/^(.{2,70}\((?:Str|Sop|Mag)[^)\n]*\))[ \t]*$/gm, "<b>$1</b>")}</p></div>` : ""}
+    <details class="blk"><summary class="note" style="cursor:pointer">Reimporta il blocco statistiche</summary>
+      <p class="note">Incolla di nuovo la scheda da Golarion (o l’esportazione del Banco) per correggere le statistiche lette male. Nome proprio, danni, round, maturazioni e note restano come sono.</p>
+      <textarea id="x-reimp" style="min-height:90px" ${ro}></textarea>
+      <div class="row"><button class="btn small" id="x-reimp-ok" ${ro}>Sostituisci le statistiche</button></div>
+      <p class="msg" id="m-reimp" hidden></p></details>
     <div class="blk"><h3>Scheda per il giocatore</h3>
       <div class="checks"><label class="chk"><input type="checkbox" id="x-man" checked>Legame, richiamo e maturazioni da compilare</label><label class="chk"><input type="checkbox" id="x-pre">Precompila con i valori attuali</label></div>
       <div class="row"><button class="btn small" id="x-pdf">Scarica PDF</button><button class="btn small ghost" id="x-exp">Esporta la creatura (.json)</button>
@@ -893,6 +905,19 @@ function bindDettaglio(c) {
   on("x-rmmat", "click", () => { const v = (c.maturazioni || []).pop(); if (v && v.modello === "Stirpe superiore" && v.scelte && v.scelte.prima) Object.assign(c, v.scelte.prima); avvisoMat = v ? { cls: "ok", t: `${v.modello} annullato.` } : null; salvaE(); });
   const campo = (id, k, conv = v => v) => on(id, "change", e => { c[k] = conv(e.target.value); salvaE(); });
   campo("x-sopr", "soprannome", v => v.trim()); campo("x-gs", "gs", v => v.trim()); campo("x-dv", "dv", v => +v || 0); campo("x-pf", "pf", v => +v || 0); campo("x-note", "note");
+  on("x-sposta", "click", () => {
+    const m = $("m-x"), verso = c.luogo === "archivio" ? "mazzo" : "archivio";
+    if (verso === "mazzo" && C.filter(x => x.luogo === "mazzo").length >= D().mazzo) { m.hidden = false; m.className = "msg no"; m.textContent = `Il mazzo è pieno (${D().mazzo}): sposta prima un’altra creatura nell’archivio.`; return; }
+    c.luogo = verso; vista = verso; salvaE();
+  });
+  on("x-reimp-ok", "click", () => {
+    const m = $("m-reimp"), testo = $("x-reimp").value.trim(); m.hidden = false;
+    let st = null; try { const o = JSON.parse(testo); st = (o.creatura || o).stat || null; } catch (e) {}
+    if (!st) { const s2 = parseStat(testo); if (s2.pf || s2.car && s2.car.For != null) st = s2; }
+    if (!st) { m.className = "msg no"; m.textContent = "Non riconosco il testo: incolla il blocco statistiche completo."; return; }
+    c.stat = st; if (st.gs) c.gs = st.gs; if (st.pf) c.pf = st.pf; if (st.dv) c.dv = st.dv; if (st.car && st.car.Int !== undefined) c.int = st.car.Int; if (st.tipo) { c.tipo = st.tipo; c.sotto = st.sotto || ""; }
+    avvisoMat = { cls: "ok", t: "Statistiche sostituite." }; salvaE();
+  });
   on("x-luogo", "change", e => {
     const m = $("m-x");
     if (e.target.value === "mazzo" && C.filter(x => x.luogo === "mazzo").length >= D().mazzo) { m.hidden = false; m.className = "msg no"; m.textContent = "Il mazzo è pieno: sposta prima un’altra creatura nell’archivio."; e.target.value = "archivio"; return; }
@@ -956,7 +981,7 @@ function pdf(c) {
   campo("Punti Fatica", `${Math.floor(tot / 2)}  -  Punti Ferita ${Math.ceil(tot / 2)}  (totale ${tot}${P.vigore ? ", con Vigore del legame" : ""})`);
   campo("Tiri Salvezza", `Tempra ${add(s.temp)}, Riflessi ${add(s.rifl)}, Volontà ${add(s.vol)}`); campo("Difese", s.difese);
   tit("Attacco"); campo("Velocità", s.vel); const ba = man ? " [+ grado di Legame a TxC e danni]" : "";
-  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.nuoviAtt) campo("Attacchi naturali della maturazione", s.nuoviAtt + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Spazio", s.spazio); campo("Attacchi Speciali", s.attsp); if (s.magiche) testo(s.magiche);
+  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.nuoviAtt) campo("Attacchi naturali della maturazione", s.nuoviAtt + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Attacchi Speciali", s.attsp); campo("Spazio", spazioPortata(s)); if (s.magiche) testo(s.magiche);
   tit("Statistiche"); const car = s.car || {}; campo("Caratteristiche", ["For","Des","Cos","Int","Sag","Car"].map(k => `${k} ${car[k] == null ? "-" : car[k]}`).join(", "));
   campo("Iniziativa", s.iniz); campo("Sensi", s.sensi); campo("BAB", s.bab); campo("BMC", s.bmc); campo("DMC", s.dmc); campo("Talenti", s.talenti); campo("Abilità", s.abilita); campo("Linguaggi", s.linguaggi); campo("Qualità Speciali", s.qs);
   if (s.speciali) { tit("Capacità speciali"); s.speciali.split("\n").filter(Boolean).forEach(p => { testo(p); y += 1; }); }
