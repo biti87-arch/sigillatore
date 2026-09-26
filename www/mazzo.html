@@ -105,6 +105,7 @@ details.prof summary::-webkit-details-marker{display:none}
 .stats6 div{background:var(--surface-2);border-radius:6px;padding:4px 2px}
 .stats6 span{display:block;font-size:.7rem;letter-spacing:.08em;color:var(--ink-soft)}
 .stats6 b{font-family:var(--f-num);font-size:.9rem}
+.stats6 small{display:block;font-size:.68rem;color:var(--accent)}
 .pre{white-space:pre-wrap}
 .act{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .mat li{margin:2px 0}
@@ -307,21 +308,22 @@ function D() {
   const matMax = liv < 4 ? 0 : 1 + Math.floor((liv - 4) / 4);
   return { liv, gsStd, gsMax, mazzo, comando, matMax, intLimit: (+P.int || 10) - 6 };
 }
+function gsLimite(tipo) { const d = D(); return d.gsMax + (P.arch === "stirpe" && tipo === P.stirpe && d.liv >= 7 ? 1 : 0); }
 function info(c) {
-  const d = D(), gs = parseGS(c.gs);
+  const d = D(), e = mat(c), gs = e.gs, tipo = e.tipo;
   const div = Math.max(0, Math.floor(d.gsStd - gs));
   let g = div >= 8 ? 4 : div >= 6 ? 3 : div >= 4 ? 2 : div >= 2 ? 1 : 0; const extra = [];
   if (P.profondo && g === 0) { g = 1; extra.push("Legame profondo"); }
   if (P.prediletta && c.prediletta) { g += 1; extra.push("prediletta"); }
-  if (P.arch === "stirpe" && c.tipo === P.stirpe) { g += 1; extra.push("stirpe"); }
+  if (P.arch === "stirpe" && tipo === P.stirpe) { g += 1; extra.push("stirpe"); }
   g = Math.min(4, g);
   const dv = +c.dv || 0;
-  const tot = (+c.pf || 0) + g * dv + (P.vigore ? dv : 0);
+  const tot = Math.max(1, (+c.pf || 0) + e.pfPiu + g * dv + (P.vigore ? dv : 0));
   const fat = Math.floor(tot / 2), fer = Math.ceil(tot / 2);
   const fatR = Math.max(0, fat - (+c.fatPersi || 0)), ferR = Math.max(0, fer - (+c.ferPersi || 0));
-  const round = 3 + Math.floor(d.liv / 2) + (+P.prol || 0) * 3 + ((P.aff || []).includes(c.tipo) ? 2 : 0);
+  const round = 3 + Math.floor(d.liv / 2) + (+P.prol || 0) * 3 + ((P.aff || []).includes(tipo) ? 2 : 0);
   const matMax = d.matMax + (c.veterana ? 1 : 0);
-  return { d, gs, div, g, extra, tot, fat, fer, fatR, ferR, round, roundR: Math.max(0, round - (+c.roundUsati || 0)), matMax, oltreGS: gs > d.gsMax + (P.arch === "stirpe" && c.tipo === P.stirpe && d.liv >= 7 ? 1 : 0) };
+  return { d, e, gs, div, g, extra, tot, fat, fer, fatR, ferR, round, roundR: Math.max(0, round - (+c.roundUsati || 0)), matMax, oltreGS: gs > gsLimite(tipo) + 1e-9 };
 }
 function danni(c, n) {
   const i = info(c); n = Math.max(0, n);
@@ -336,6 +338,322 @@ function cura(c, n) {   // Vol. 1: le cure ripristinano prima i Punti Ferita, po
 }
 function riposo(c) {   // 8 ore: Punti Fatica pieni, guarigione naturale di 1 PF per DV, risveglio, round ricaricati
   c.fatPersi = 0; c.ferPersi = Math.max(0, (+c.ferPersi || 0) - Math.max(1, +c.dv || 1)); c.sopita = false; c.roundUsati = 0;
+}
+
+// ---------- maturazioni: effetti applicati alla scheda ----------
+const CAR6 = ["For", "Des", "Cos", "Int", "Sag", "Car"];
+const TAGLIE_M = ["Piccolissimo", "Minuto", "Minuscolo", "Piccolo", "Medio", "Grande", "Enorme", "Mastodontico", "Colossale"];
+const TAGLIE_F = ["Piccolissima", "Minuta", "Minuscola", "Piccola", "Media", "Grande", "Enorme", "Mastodontica", "Colossale"];
+const T_ATT = [8, 4, 2, 1, 0, -1, -2, -4, -8];     // taglia: CA e tiri per colpire
+const T_MAN = [-8, -4, -2, -1, 0, 1, 2, 4, 8];     // taglia: BMC e DMC
+const SPAZIO = ["15 cm", "30 cm", "75 cm", "1,5 m", "1,5 m", "3 m", "4,5 m", "6 m", "9 m"];
+const PORTATA = ["0 m", "0 m", "0 m", "1,5 m", "1,5 m", "3 m (1,5 m se lunga)", "4,5 m (3 m se lunga)", "6 m (4,5 m se lunga)", "9 m (6 m se lunga)"];
+const DADI_SU = { "1d2": "1d3", "1d3": "1d4", "1d4": "1d6", "1d6": "1d8", "1d8": "2d6", "1d10": "2d8", "1d12": "3d6", "2d4": "2d6", "2d6": "3d6", "2d8": "3d8", "2d10": "4d8", "3d6": "4d6", "3d8": "4d8", "4d6": "6d6", "4d8": "6d8", "6d6": "8d6", "6d8": "8d8", "8d6": "12d6", "8d8": "12d8" };
+const D_MORSO = ["1", "1d2", "1d3", "1d4", "1d6", "1d8", "2d6", "2d8", "4d6"];
+const D_ARTIGLIO = ["1", "1", "1d2", "1d3", "1d4", "1d6", "1d8", "2d6", "2d8"];
+const AB_CAR = { "Acrobazia": "Des", "Artista della Fuga": "Des", "Cavalcare": "Des", "Disattivare Congegni": "Des", "Furtività": "Des", "Rapidità di Mano": "Des", "Volare": "Des",
+  "Nuotare": "For", "Scalare": "For", "Conoscenze": "Int", "Sapienza Magica": "Int", "Valutare": "Int", "Guarire": "Sag", "Intuizione": "Sag", "Percezione": "Sag", "Professione": "Sag",
+  "Sopravvivenza": "Sag", "Camuffare": "Car", "Diplomazia": "Car", "Intimidire": "Car", "Intrattenere": "Car", "Raggirare": "Car", "Utilizzare Congegni Magici": "Car" };
+const AB_KEYS = Object.keys(AB_CAR).sort((a, b) => b.length - a.length);
+const GS_FR = [[1 / 8, "1/8"], [1 / 6, "1/6"], [1 / 4, "1/4"], [1 / 3, "1/3"], [1 / 2, "1/2"]];
+function gsPiu(v, n) { for (let k = 0; k < n; k++) { if (v < 1 - 1e-9) { const f = GS_FR.find(x => x[0] > v + 1e-9); v = f ? f[0] : 1; } else v += 1; } return v; }
+function gsTesto(v) { if (v >= 1 - 1e-9) return String(Math.round(v)); const f = GS_FR.find(x => Math.abs(x[0] - v) < 1e-3); return f ? f[1] : String(v); }
+const numIt = v => String(Math.round(v * 10) / 10).replace(".", ",");
+const segno = n => (n >= 0 ? "+" : "-") + Math.abs(n);
+function idxTaglia(t) { const k = String(t || "").toLowerCase(); const i = TAGLIE_F.findIndex((f, j) => k === f.toLowerCase() || k === TAGLIE_M[j].toLowerCase()); return i < 0 ? 4 : i; }
+const nomeTaglia = (i, orig) => (/a$/i.test(orig || "") ? TAGLIE_F : TAGLIE_M)[i];
+const magieFino = (tab, dv) => tab.filter(r => dv >= r[0]).map(r => r[1]).join("; ");
+function splitFuori(s) { const out = []; let lv = 0, cur = ""; for (const ch of String(s || "")) { if (ch === "(") lv++; if (ch === ")") lv--; if (ch === "," && lv === 0) { out.push(cur.trim()); cur = ""; } else cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; }
+
+const AFF = {
+  Celestiale: { res: ["acido", "elettricità", "freddo"], rd: "male", pun: "il male", bers: "malvagio" },
+  Immondo: { res: ["freddo", "fuoco"], rd: "bene", pun: "il bene", bers: "buono" },
+  Entropico: { res: ["acido", "fuoco"], rd: "legale", pun: "la legge", bers: "legale" },
+  Risoluto: { res: ["acido", "freddo", "fuoco"], rd: "caotico", pun: "il caos", bers: "caotico" } };
+const VARIETA = { "Argento": ["cono di 9 m", "freddo"], "Bianco": ["cono di 9 m", "freddo"], "Blu": ["linea di 18 m", "elettricità"], "Bronzo": ["linea di 18 m", "elettricità"],
+  "Nero": ["linea di 18 m", "acido"], "Rame": ["linea di 18 m", "acido"], "Oro": ["cono di 9 m", "fuoco"], "Rosso": ["cono di 9 m", "fuoco"], "Ottone": ["linea di 18 m", "fuoco"], "Verde": ["cono di 9 m", "acido"] };
+const AF_MAG = [[1, "Charme su persone, Luminescenza"], [4, "Forma arborea, Volare (3/giorno)"], [7, "Charme sui mostri, Terreno illusorio"], [10, "Metamorfosi (3/giorno), Libertà di movimento"], [14, "Regressione mentale, Muro di spine"], [17, "Charme sui mostri di massa, Controllare vegetali*"]];
+const CF_MAG = [[1, "Luci danzanti (a volontà), Luminescenza (3/giorno)"], [3, "Intralciare, Polvere luccicante (1/giorno ciascuna)"], [5, "Sonno profondo (1/giorno)"], [7, "Immagine maggiore (1/giorno)"], [9, "Confusione (1/giorno)"], [11, "Regressione mentale (1/giorno)"], [13, "Fuorviare (1/giorno)"], [15, "Immagine proiettata (1/giorno)"], [17, "Danza irresistibile (1/giorno)"], [19, "Trama scintillante (1/giorno)"]];
+const MC_MAG = [[1, "Benedizione, Protezione dal male (3/giorno)"], [3, "Aiuto, Individuazione del male (1/giorno)"], [5, "Cura ferite gravi, Neutralizza veleno (1/giorno)"], [7, "Punizione sacra, Rimuovi malattia (1/giorno)"], [9, "Dissolvi il male (1/giorno)"], [11, "Parola sacra (1/giorno)"], [13, "Aura sacra (3/giorno), Santificare (1/giorno)"], [15, "Charme sui mostri di massa (1/giorno)"], [17, "Guarigione di massa* (1/giorno)"], [19, "Resurrezione (1/giorno)"]];
+const MI_MAG = [[1, "Oscurità (3/giorno)"], [3, "Dissacrare"], [5, "Influenza sacrilega"], [7, "Veleno (3/giorno)"], [9, "Contagio"], [11, "Blasfemia"], [13, "Aura sacrilega (3/giorno), Profanare"], [15, "Orrido avvizzimento"], [17, "Blocca mostri di massa*"], [19, "Distruzione"]];
+const CF_SPEC = {
+  "Andatura nel bosco": () => "Andatura nel bosco (Str): attraversa il sottobosco naturale a velocità normale e senza subire danni.",
+  "Cambiare forma": () => "Cambiare forma (Sop): assume una forma alternativa fissa (la creatura base, un umanoide o un animale) entro una categoria di taglia.",
+  "Eludere": () => "Eludere (Str): come l’omonima capacità del Ladro.",
+  "Mimetismo": () => "Mimetismo (Str): usa Furtività in qualsiasi terreno naturale anche senza copertura; +4 razziale a Furtività (già conteggiato).",
+  "Passo lungo": dv => `Passo lungo (Sop): come azione di movimento si teletrasporta fino a ${numIt(3 * dv)} m; utilizzabile una volta ogni 1d4 round.`,
+  "Passo senza tracce": () => "Passo senza tracce (Str): non lascia tracce in ambienti naturali, a meno che non lo voglia.",
+  "Resistenza agli incantesimi": () => "Resistenza agli incantesimi (Str): RI pari a 11 + GS (già conteggiata nelle difese).",
+  "Resistenza all’energia": () => "Resistenza all’energia (Str): resistenza 10 a un tipo di energia, oppure +10 a una resistenza che già possiede (massimo 30)." };
+const DEF = {
+  "Cecità": "Cecità (Str): il mutante è Accecato, a meno che non abbia mezzi per vedere oltre la visione normale. Non si può rimuovere con la magia.",
+  "Sordità": "Sordità (Str): il mutante è Assordato. Non si può rimuovere con la magia.",
+  "Fragile": "Fragile (Str): quando fallisce un TS su Tempra resta Barcollante per 1 round.",
+  "Mente fratturata": "Mente fratturata (Str): quando fallisce un TS su Volontà resta Confuso per 1 round.",
+  "Zoppo": "Zoppo (Str): −3 m alla velocità base (già conteggiato).",
+  "Cecità alla luce": "Cecità alla luce (Str): ottiene la capacità speciale Cecità alla luce.",
+  "Senza mente": "Senza mente (Str): non ha punteggio di Intelligenza, perde tutti i talenti e i gradi abilità ed è immune agli effetti di influenza mentale.",
+  "Caratteristiche mediocri": "Caratteristiche mediocri (Str): −4 a una caratteristica (già conteggiato).",
+  "Spasmi": "Spasmi (Str): quando fallisce un TS su Riflessi, per 1 round non può fare attacchi di opportunità né azioni immediate e perde il bonus di Destrezza alla CA, ai tiri per colpire a distanza e con Arma accurata, e alle prove di caratteristica e di abilità.",
+  "Braccio inutile": "Braccio inutile (Str): un braccio è malformato e inutilizzabile.",
+  "Vulnerabilità": "Vulnerabilità (Str): è vulnerabile a un tipo di energia; se aveva resistenza o immunità innata a quel tipo, la perde." };
+const MUT = {
+  "Corazzato": () => "Corazzato (Str): +2 all’armatura naturale (già conteggiato).",
+  "Occhi sferici": () => "Occhi sferici (Str): visione crepuscolare e scurovisione 18 m.",
+  "Celerità": () => "Celerità (Str): come azione veloce ottiene i benefici di Velocità per 1 round, una volta ogni 1d4 round; +2 all’Iniziativa (già conteggiato).",
+  "Ecolocazione": () => "Ecolocazione (Str): percezione cieca 9 m e il talento bonus Combattere alla cieca.",
+  "Braccio aggiuntivo": () => "Braccio aggiuntivo (Str): un braccio in più; il talento bonus Combattere con più armi se le braccia diventano più di due.",
+  "Guarigione rapida": () => "Guarigione rapida (Str): guarigione rapida 5.",
+  "Ferino": () => "Ferino (Str): un morso e un artiglio per ogni braccio, con i danni per la sua taglia; se ha già questi attacchi, il danno aumenta di una categoria.",
+  "Branchie": () => "Branchie (Str): sottotipo Acquatico, capacità Anfibio e velocità di nuotare pari alla velocità base.",
+  "Velocità aumentata": () => "Velocità aumentata (Str): +3 m a una delle velocità (indicata nei dettagli).",
+  "Balzante": () => "Balzante (Str): +10 alle prove di Acrobazia per saltare e conta sempre come se prendesse la rincorsa.",
+  "Armatura mentale": () => "Armatura mentale (Sop): finché è cosciente è protetto da un campo come Armatura magica (+4 armatura, già conteggiato). Se viene rimosso, lo rigenera come azione veloce.",
+  "Ira": dv => `Ira (Str): entra in Ira come il privilegio del Barbaro, come un barbaro di ${dv}° livello.`,
+  "Resistenza": () => "Resistenza (Str): resistenza 10 a un tipo di energia (20 se scelta due volte, 30 se tre volte).",
+  "Robusto": () => "Robusto (Str): RD 5/—.",
+  "Mente sigillata": () => "Mente sigillata (Str): immune agli effetti di influenza mentale.",
+  "Schianto": () => "Schianto (Str): uno schianto per ogni braccio, con i danni per la sua taglia; se ha già uno schianto, il danno aumenta di una categoria.",
+  "Capacità magica": dv => `Capacità magica (Mag): un incantesimo a scelta dall’elenco del modello, di livello non superiore a ${Math.floor(dv / 2)}; livello dell’incantatore ${dv}.`,
+  "Fetore": () => "Fetore (Str): capacità speciale Fetore, con durata 1 minuto.",
+  "Telepatia": () => "Telepatia (Sop, Mag): telepatia 30 m e Individuazione dei pensieri a volontà.",
+  "Ali": () => "Ali (Str): velocità di volo 12 m, manovrabilità media." };
+const MUT_ABIL = ["Conoscenze", "Intimidire", "Intuizione", "Nuotare", "Percezione", "Scalare", "Sopravvivenza"];
+
+// Calcola gli effetti delle maturazioni (senza Legame): GS, tipo, taglia, caratteristiche e liste di capacità
+function mat(c) {
+  const s = c.stat || {}, dv = +c.dv || 0, car0 = s.car || {};
+  const e = { gs: parseGS(c.gs), tipo: c.tipo, sotto: c.sotto ? [c.sotto] : [], t0: idxTaglia(s.taglia), t: idxTaglia(s.taglia), nat: 0, arm: 0, init: 0, dadiSu: 0,
+    dCar: { For: 0, Des: 0, Cos: 0, Int: 0, Sag: 0, Car: 0 }, intNull: false, intSeNull: null, sensi: [], difese: [], ri: [], vel: { tutte: 0, base: 0, volo: [], nuoto: false },
+    attacchi: [], speciali: [], magiche: [], fisse: [], piu: {}, lingue: [], riep: [], avvisi: [], tardi: [], attive: 0 };
+  const nat0 = +(((s.ca || "").match(/([+-]\d+)\s*natural/i) || [])[1] || 0);
+  const add = (k, v) => { e.dCar[k] += v; };
+  const setSotto = v => { e.sotto = e.sotto.filter(x => !/potenziat|nativ/i.test(x)); if (v) e.sotto.push(v); };
+  for (const m of c.maturazioni || []) {
+    const n = m.modello, sc = m.scelte || {};
+    if (n === "Stirpe superiore") { e.riep.push(`Stirpe superiore: statistiche della nuova forma${sc.prima ? ` (prima era ${sc.prima.nome}, GS ${sc.prima.gs})` : ""}.`); continue; }
+    e.attive++;
+    if (n === "Avanzato") {
+      e.gs = gsPiu(e.gs, 1); e.nat += 2;
+      CAR6.forEach(k => { if (k === "Int" && !(car0.Int > 2)) return; if (car0[k] != null) add(k, 4); });
+      e.riep.push(`Avanzato: +4 alle caratteristiche${car0.Int > 2 ? "" : " (Int esclusa)"}, +2 armatura naturale, GS +1.`);
+    } else if (n === "Gigante") {
+      e.gs = gsPiu(e.gs, 1); e.t = Math.min(8, e.t + 1); e.nat += 3; e.dadiSu++; add("For", 4); add("Cos", 4); add("Des", -2);
+      e.riep.push("Gigante: taglia +1 categoria, +3 armatura naturale, dadi dei danni +1 categoria, For e Cos +4, Des −2, GS +1.");
+    } else if (AFF[n]) {
+      const a = AFF[n], v = dv >= 11 ? 15 : dv >= 5 ? 10 : 5;
+      e.gs = gsPiu(e.gs, dv >= 5 ? 1 : 0); e.sensi.push("scurovisione 18 m");
+      e.difese.push(`resistenza ${a.res.map(x => x + " " + v).join(", ")}`); if (dv >= 5) e.difese.push(`RD ${dv >= 11 ? 10 : 5}/${a.rd}`);
+      e.ri.push(gs => gs + 5);
+      e.tardi.push(M => e.speciali.push(`Punire ${a.pun} (Sop): 1 volta al giorno, come azione veloce, sceglie un bersaglio ${a.bers}: ${segno(M("Car"))} ai tiri per colpire e +${dv} ai danni contro di lui, finché il bersaglio non muore o la creatura non riposa.`));
+      e.riep.push(`${n}: scurovisione 18 m, resistenze ${v}${dv >= 5 ? ", RD" : ""}, RI, Punire ${a.pun}, GS ${dv >= 5 ? "+1" : "+0"}.`);
+    } else if (n === "Animale Fatato") {
+      e.gs = gsPiu(e.gs, 1); e.tipo = "Folletto"; setSotto("Potenziato"); e.sensi.push("scurovisione 18 m", "visione crepuscolare");
+      e.difese.push(`RD ${dv >= 11 ? 10 : 5}/ferro freddo`); e.ri.push(gs => gs + 11); e.nat += 1; e.vel.tutte += 3;
+      add("Des", 4); if (car0.Int != null) { const cur = car0.Int + e.dCar.Int; add("Int", Math.max(0, Math.min(12, cur + 10) - cur)); } add("Sag", 2); add("Car", 4);
+      e.tardi.push(M => e.speciali.push(`Maledizione mortale (Sop): chi uccide la creatura deve superare un TS su Volontà (CD ${10 + Math.floor(dv / 2) + M("Car")}); se fallisce subisce −2 a tiri per colpire, prove di caratteristica, prove di abilità e Tiri Salvezza, finché la maledizione non viene rimossa.`));
+      e.magiche.push(`Capacità magiche (Animale Fatato, LI ${dv}): ${magieFino(AF_MAG, dv)}`);
+      e.fisse.push(["Furtività", 7, "Des"], ["Raggirare", 7, "Car"], ["Percezione", 3, "Sag"]); e.lingue.push("Silvano");
+      e.riep.push("Animale Fatato: tipo Folletto (Potenziato), Des +4, Int +10 (max 12), Sag +2, Car +4, +1 armatura naturale, velocità +3 m, RD, RI, capacità magiche, GS +1.");
+    } else if (n === "Creatura Fatata") {
+      e.gs = gsPiu(e.gs, dv >= 10 ? 2 : 1); e.tipo = "Folletto"; e.sensi.push("visione crepuscolare");
+      e.difese.push("+4 ai TS contro gli effetti di influenza mentale", "resistenza elettricità 10, freddo 10", `RD ${dv >= 12 ? 10 : 5}/ferro freddo`);
+      if (nat0 + e.nat > 0) e.nat -= 1;
+      e.vel.volo.push({ molt: 1.5, man: "buona", fatata: true });
+      add("Des", 4); add("Car", 2); add("For", -2); if (car0.Int == null) e.intSeNull = 3; else add("Int", 2);
+      for (const sp of sc.speciali || []) {
+        if (sp === "Mimetismo") e.piu["Furtività"] = (e.piu["Furtività"] || 0) + 4;
+        if (sp === "Resistenza agli incantesimi") e.ri.push(gs => 11 + gs);
+        if (sp === "Resistenza all’energia") e.difese.push("resistenza 10 a un tipo di energia" + (sc.det ? ` (${sc.det})` : ""));
+        if (CF_SPEC[sp]) e.speciali.push(CF_SPEC[sp](dv));
+      }
+      if (sc.det) e.speciali.push("Scelte della Creatura Fatata: " + sc.det);
+      e.tardi.push((M, cf) => { if (Math.max(cf.Int ?? 0, cf.Sag ?? 0) >= 8) e.magiche.push(`Capacità magiche (Creatura Fatata, LI ${dv}): ${magieFino(CF_MAG, dv)}`); });
+      e.fisse.push(["Acrobazia", 3, "Des"], ["Furtività", 3, "Des"], ["Volare", 3, "Des"], ["Raggirare", 3, "Car"]); e.lingue.push("Silvano");
+      e.riep.push(`Creatura Fatata: tipo Folletto, Des +4, Int +2, Car +2, For −2, armatura naturale −1, volo, difese e capacità, GS +${dv >= 10 ? 2 : 1}.`);
+    } else if (n === "Creatura Mutante") {
+      e.gs = gsPiu(e.gs, 1); e.tipo = "Aberrazione"; setSotto("Potenziato");
+      (sc.piu || []).forEach(k => add(k, 4)); (sc.meno || []).forEach(k => add(k, -2));
+      for (const d of sc.deformita || []) {
+        if (d === "Zoppo") e.vel.base -= 3;
+        if (d === "Caratteristiche mediocri" && sc.mediocre) add(sc.mediocre, -4);
+        if (d === "Senza mente") e.intNull = true;
+        if (DEF[d]) e.speciali.push("Deformità – " + DEF[d]);
+      }
+      for (const mu of sc.mutazioni || []) {
+        if (mu === "Corazzato") e.nat += 2;
+        if (mu === "Occhi sferici") e.sensi.push("scurovisione 18 m", "visione crepuscolare");
+        if (mu === "Celerità") e.init += 2;
+        if (mu === "Ecolocazione") e.sensi.push("percezione cieca 9 m");
+        if (mu === "Guarigione rapida") e.difese.push("guarigione rapida 5");
+        if (mu === "Ferino") e.attacchi.push({ tipo: "artiglio" }, { tipo: "morso" });
+        if (mu === "Schianto") e.attacchi.push({ tipo: "schianto" });
+        if (mu === "Branchie") { e.sotto.push("Acquatico"); e.vel.nuoto = true; }
+        if (mu === "Robusto") e.difese.push("RD 5/—");
+        if (mu === "Mente sigillata") e.difese.push("immunità agli effetti di influenza mentale");
+        if (mu === "Resistenza") e.difese.push("resistenza 10 a un tipo di energia (vedi le scelte)");
+        if (mu === "Telepatia") { e.sensi.push("telepatia 30 m"); e.magiche.push(`Capacità magiche (Creatura Mutante, LI ${dv}): Individuazione dei pensieri (a volontà)`); }
+        if (mu === "Ali") e.vel.volo.push({ m: 12, man: "media" });
+        if (mu === "Armatura mentale") e.arm = 4;
+        if (MUT[mu]) e.speciali.push("Mutazione – " + MUT[mu](dv));
+      }
+      (sc.abilita || []).forEach(a => { e.piu[a] = (e.piu[a] || 0) + 3; });
+      if (sc.det) e.speciali.push("Scelte del mutante: " + sc.det);
+      if (!(sc.piu || []).length) e.avvisi.push("Creatura Mutante aggiunta senza scelte: rimuovila e riaggiungila per indicarle.");
+      e.riep.push(`Creatura Mutante: tipo Aberrazione (Potenziato), ${(sc.piu || []).map(k => k + " +4").concat((sc.meno || []).map(k => k + " −2")).join(", ") || "caratteristiche da scegliere"}; deformità ${(sc.deformita || []).join(", ") || "—"}; mutazioni ${(sc.mutazioni || []).join(", ") || "—"}; GS +1.`);
+    } else if (n === "Mezzo-Drago") {
+      const vr = VARIETA[sc.varieta] || null;
+      e.gs = Math.max(3, gsPiu(e.gs, 2)); e.tipo = "Drago"; e.sensi.push("scurovisione 18 m", "visione crepuscolare"); e.nat += 4;
+      e.difese.push("immunità a sonno e paralisi" + (vr ? `; resistenza ${vr[1]} 20` : ""));
+      e.vel.volo.push({ molt: 2, man: "media" }); e.attacchi.push({ tipo: "artiglio" }, { tipo: "morso" });
+      add("For", 8); if (car0.Cos != null) add("Cos", 6); if (car0.Int != null) add("Int", 2); add("Car", 2);
+      e.tardi.push(M => e.speciali.push(`Soffio (Sop): 1 volta al giorno, ${vr ? vr[0] + " di " + vr[1] : "forma ed energia secondo la varietà"}, ${dv}d6 danni; Riflessi dimezza (CD ${10 + Math.floor(dv / 2) + M("Cos")}).`));
+      e.fisse.push(["Percezione", 3, "Sag"], ["Intimidire", 3, "Car"], ["Volare", 3, "Des"]);
+      e.riep.push(`Mezzo-Drago${sc.varieta ? " " + sc.varieta.toLowerCase() : ""}: tipo Drago, For +8, Cos +6, Int +2, Car +2, +4 armatura naturale, volo, artigli e morso, soffio, GS +2 (minimo 3).`);
+    } else if (n === "Mezzo-Celestiale" || n === "Mezzo-Immondo") {
+      const mc = n === "Mezzo-Celestiale", forti = sc.forti || [];
+      e.gs = gsPiu(e.gs, mc ? (dv <= 5 ? 1 : dv <= 10 ? 2 : 3) : (dv <= 4 ? 1 : dv <= 10 ? 2 : 3));
+      e.tipo = "Esterno"; setSotto("nativo"); e.sensi.push("scurovisione 18 m"); e.nat += 1;
+      e.difese.push(mc ? "immunità alle malattie; +4 ai TS contro il veleno; resistenza acido 10, elettricità 10, fuoco 10" : "immunità al veleno; resistenza acido 10, elettricità 10, freddo 10, fuoco 10", `RD ${dv >= 12 ? 10 : 5}/magia`);
+      e.ri.push(gs => Math.min(35, gs + 11)); e.vel.volo.push({ molt: 2, man: "buona" });
+      CAR6.forEach(k => { if (car0[k] == null) return; add(k, forti.includes(k) ? 4 : 2); });
+      if (!mc) e.attacchi.push({ tipo: "artiglio" }, { tipo: "morso" });
+      e.tardi.push((M, cf) => {
+        e.speciali.push(`Punire ${mc ? "il male" : "il bene"} (Sop): 1 volta al giorno, come azione veloce, come un paladino di ${dv}° livello: ${segno(M("Car"))} ai tiri per colpire, +${dv} ai danni e ${segno(Math.max(0, M("Car")))} di deviazione alla CA contro il bersaglio, finché non muore o fino al riposo successivo.`);
+        if (!mc || Math.max(cf.Int ?? 0, cf.Sag ?? 0) >= 8) e.magiche.push(`Capacità magiche (${n}, LI ${dv}): ${magieFino(mc ? MC_MAG : MI_MAG, dv)}`);
+      });
+      e.fisse.push(["Percezione", 3, "Sag"], mc ? ["Intuizione", 3, "Sag"] : ["Intimidire", 3, "Car"], mc ? ["Diplomazia", 3, "Car"] : ["Raggirare", 3, "Car"]);
+      if (forti.length !== 3) e.avvisi.push(`${n} aggiunto senza scegliere le tre caratteristiche a +4: rimuovilo e riaggiungilo.`);
+      e.riep.push(`${n}: tipo Esterno (nativo), ${forti.length ? forti.join(", ") + " +4, le altre +2" : "caratteristiche da scegliere"}, +1 armatura naturale, volo, difese, Punire, capacità magiche${mc ? "" : ", artigli e morso"}, GS +${mc ? (dv <= 5 ? 1 : dv <= 10 ? 2 : 3) : (dv <= 4 ? 1 : dv <= 10 ? 2 : 3)}.`);
+    }
+  }
+  const car = {}, dm = {};
+  for (const k of CAR6) {
+    const b = car0[k] ?? null; let v = b == null ? null : b + e.dCar[k];
+    if (k === "Int") { if (e.intNull) v = null; else if (b == null && e.intSeNull != null) v = e.intSeNull; }
+    if (v != null) v = Math.max(1, v);
+    car[k] = v; dm[k] = b != null && v != null ? mod(v) - mod(b) : 0;
+  }
+  const M = k => car[k] == null ? 0 : mod(car[k]);
+  e.tardi.forEach(fn => fn(M, car));
+  e.car = car; e.dm = dm; e.M = M; e.pfPiu = car0.Cos != null && car.Cos != null ? (+c.dv || 0) * dm.Cos : 0;
+  return e;
+}
+
+function ritoccaAtt(str, dTxC, dFor, g, dadiSu, mischia) {
+  if (!str || (!dTxC && !dFor && !g && !dadiSu)) return str;
+  const re = /((?:[+-]\d+\/)*[+-]\d+)(\s*\()([^)]*)\)/g;
+  const tutti = [...str.matchAll(re)].map(m => ({ seq: m[1], primo: parseInt(m[1]) }));
+  const max = Math.max(...tutti.map(x => x.primo)), unico = tutti.length === 1 && !tutti[0].seq.includes("/");
+  return str.replace(re, (all, seq, par, dentro) => {
+    const primo = parseInt(seq), secondario = mischia && tutti.length > 1 && !seq.includes("/") && primo === max - 5;
+    const dd = mischia ? (unico ? Math.trunc(dFor * 1.5) : secondario ? Math.trunc(dFor / 2) : dFor) : 0;
+    const nseq = seq.split("/").map(x => segno(parseInt(x) + dTxC + g)).join("/");
+    const nd = dentro.replace(/(\d+d\d+)([+-]\d+)?/, (m, dado, b) => { let d = dado; for (let k = 0; k < dadiSu; k++) d = DADI_SU[d] || d; const v = (b ? parseInt(b) : 0) + dd + g; return d + (v ? segno(v) : ""); });
+    return nseq + par + nd + ")";
+  });
+}
+function ritoccaCA(str, dNat, dDes, dT, arm) {
+  if (!str || (!dNat && !dDes && !dT && !arm)) return str;
+  let out = str.replace(/^(\s*)(\d+)/, (m, sp, n) => sp + (+n + dNat + dDes + dT + arm));
+  out = out.replace(/(contatto\s*)(\d+)/i, (m, a, n) => a + (+n + dDes + dT));
+  out = out.replace(/(impreparat[oa]\s*)(\d+)/i, (m, a, n) => a + (+n + dNat + dT + arm));
+  const voci = [["destrezza", dDes, "Destrezza"], ["natural", dNat, "naturale"], ["taglia", dT, "taglia"], ["armatura", arm, "armatura"]];
+  if (/\(([^)]*)\)\s*$/.test(out)) out = out.replace(/\(([^)]*)\)\s*$/, (m, dentro) => {
+    let parti = dentro.split(",").map(x => x.trim()).filter(Boolean);
+    for (const [chi, d, nome] of voci) {
+      if (!d) continue;
+      const i = parti.findIndex(p => p.toLowerCase().includes(chi) && !(chi === "armatura" && /natural/i.test(p)));
+      if (i >= 0) { const mm = parti[i].match(/^([+-]\d+)\s*(.*)$/); if (mm) { const v = parseInt(mm[1]) + d; parti[i] = v ? segno(v) + " " + mm[2] : ""; } }
+      else parti.push(segno(d) + " " + nome);
+    }
+    return "(" + parti.filter(Boolean).join(", ") + ")";
+  });
+  return out;
+}
+function ritoccaNum(str, d, tutti) {
+  if (!str || !d) return str;
+  if (tutti) return str.replace(/^(\s*)(\d+)/, (m, sp, n) => sp + (+n + d)).replace(/(\()(\d+)(\s+contro)/g, (m, a, n, b) => a + (+n + d) + b);
+  return str.replace(/[+-]?\d+/, n => segno(parseInt(n) + d));
+}
+function ritoccaAbil(str, e, dStep) {
+  const trova = nome => AB_KEYS.find(k => nome.toLowerCase().startsWith(k.toLowerCase()));
+  const righe = splitFuori(str).map(v => {
+    const m = v.match(/^(.*?)\s*([+-]\d+)(.*)$/); if (!m) return { testo: v };
+    const k = trova(m[1].trim()); if (!k) return { testo: v };
+    const d = e.dm[AB_CAR[k]] + (k === "Furtività" ? -4 * dStep : k === "Volare" ? -2 * dStep : 0) + (e.piu[k] || 0);
+    return { k, nome: m[1].trim(), val: +m[2] + d, resto: d ? m[3].replace(/([+-])(\d+)/g, (x, sg, nn) => segno(parseInt(sg + nn) + d)) : m[3] };
+  });
+  for (const [k, v] of Object.entries(e.piu)) if (!righe.some(r => r.k === k)) righe.push({ k, nome: k, val: e.M(AB_CAR[k]) + v, resto: "" });
+  for (const [k, base, ab] of e.fisse) {
+    const val = base + (e.dv || 0) + e.M(ab), r = righe.find(x => x.k === k);
+    if (!r) righe.push({ k, nome: k, val, resto: "" }); else if (r.val < val) { r.val = val; r.resto = ""; }
+  }
+  const perc = (righe.find(r => r.k === "Percezione") || {}).val;
+  return { testo: righe.map(r => r.testo ?? `${r.nome} ${segno(r.val)}${r.resto}`).join(", "), perc };
+}
+function ritoccaSensi(str, nuovi, perc, dSag) {
+  let t = String(str || ""); const pm = t.match(/Percezione\s*([+-]\d+)/i);
+  t = t.replace(/[;,]?\s*Percezione\s*[+-]\d+/i, "");
+  const lista = t.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  for (const nv of nuovi) { const key = nv.replace(/\s*\d.*$/, "").toLowerCase(); if (!lista.some(x => x.toLowerCase().startsWith(key))) lista.push(nv); }
+  const p = perc != null ? perc : pm ? parseInt(pm[1]) + dSag : null;
+  return lista.join(", ") + (p != null ? (lista.length ? "; " : "") + "Percezione " + segno(p) : "");
+}
+function ritoccaVel(str, e, liv) {
+  if (!str) return str;
+  let k = 0, terra = null;
+  let out = str.replace(/(\d+(?:[.,]\d+)?)\s*m\b/g, (m, v) => { const x = Math.max(0, parseFloat(v.replace(",", ".")) + e.vel.tutte + (k === 0 ? e.vel.base : 0)); if (k === 0) terra = x; k++; return numIt(x) + " m"; });
+  if (terra == null) return str;
+  for (const vo of e.vel.volo) {
+    const val = vo.m ?? vo.molt * terra, ex = out.match(/volare\s+(\d+(?:[.,]\d+)?)\s*m(?:\s*\(([^)]*)\))?/i);
+    if (!ex) out += `, volare ${numIt(val)} m (${vo.man})`;
+    else {
+      const exV = parseFloat(ex[1].replace(",", ".")), exMan = ex[2] || "";
+      let nuovo = ex[0];
+      if (val > exV) nuovo = `volare ${numIt(val)} m (${vo.fatata && /buona/i.test(exMan) ? "perfetta" : vo.man})`;
+      else if (vo.fatata && /buona/i.test(exMan)) nuovo = ex[0].replace(/buona/i, "perfetta");
+      out = out.replace(ex[0], nuovo);
+    }
+  }
+  if (e.vel.nuoto && !/nuotare/i.test(out)) out += `, nuotare ${numIt(terra)} m`;
+  if (e.vel.volo.length && liv < 17) out += " · volo: altezza massima 1 m fino al 17° livello";
+  return out;
+}
+// Scheda effettiva: statistiche base + maturazioni + grado di Legame g
+function scheda(c, g) {
+  const s = c.stat || {}, e = mat(c); e.dv = +c.dv || 0;
+  const dm = e.dm, dT = T_ATT[e.t] - T_ATT[e.t0], dM = T_MAN[e.t] - T_MAN[e.t0], dStep = e.t - e.t0;
+  const num = v => { const x = parseInt(v); return isNaN(x) ? null : x; };
+  const o = { ...s, car: e.car };
+  o.gs = gsTesto(e.gs); o.tipo = e.tipo; o.sotto = e.sotto.join(", ");
+  o.taglia = dStep ? nomeTaglia(e.t, s.taglia) : s.taglia;
+  o.temp = num(s.temp) == null ? null : num(s.temp) + dm.Cos + g;
+  o.rifl = num(s.rifl) == null ? null : num(s.rifl) + dm.Des + g;
+  o.vol = num(s.vol) == null ? null : num(s.vol) + dm.Sag + g;
+  o.ca = ritoccaCA(s.ca, e.nat + g, dm.Des, dT, e.arm);
+  o.mischia = ritoccaAtt(s.mischia, dm.For + dT, dm.For, g, e.dadiSu, true);
+  o.distanza = ritoccaAtt(s.distanza, dm.Des + dT, 0, g, e.dadiSu, false);
+  if (e.attacchi.length) {
+    const txc = (num(s.bab) || 0) + e.M("For") + T_ATT[e.t] + g, b = e.M("For") + g, bb = b ? segno(b) : "";
+    const tipi = [...new Set(e.attacchi.map(a => a.tipo))];
+    o.nuoviAtt = tipi.map(t => t === "artiglio" ? `2 artigli ${segno(txc)} (${D_ARTIGLIO[e.t]}${bb})` : t === "morso" ? `morso ${segno(txc)} (${D_MORSO[e.t]}${bb})` : `2 schianti ${segno(txc)} (${D_MORSO[e.t]}${bb})`).join(", ");
+  }
+  if (!e.attive) return { o, e };
+  o.iniz = num(s.iniz) == null ? s.iniz : segno(num(s.iniz) + dm.Des + e.init);
+  o.bmc = ritoccaNum(s.bmc, dm.For + dM, false); o.dmc = ritoccaNum(s.dmc, dm.For + dm.Des + dM, true);
+  const ab = ritoccaAbil(s.abilita, e, dStep); o.abilita = ab.testo;
+  o.sensi = ritoccaSensi(s.sensi, e.sensi, ab.perc, dm.Sag);
+  o.vel = ritoccaVel(s.vel, e, D().liv);
+  if (dStep) o.spazio = `${SPAZIO[e.t]}; Portata: ${PORTATA[e.t]}`;
+  const dif = [s.difese, ...e.difese];
+  if (e.ri.length) { const ri = Math.max(...e.ri.map(f => f(e.gs))), base = parseInt(((s.difese || "").match(/\bRI\s*(\d+)/) || [])[1] || 0); if (ri > base) dif.push(`RI ${ri}`); }
+  o.difese = dif.filter(Boolean).join("; ");
+  o.magiche = [s.magiche, ...e.magiche].filter(Boolean).join("\n");
+  o.speciali = [s.speciali, ...e.speciali].filter(Boolean).join("\n");
+  const lin = e.lingue.filter(l => !new RegExp(l, "i").test(s.linguaggi || ""));
+  if (lin.length) o.linguaggi = [s.linguaggi, ...lin].filter(Boolean).join(", ");
+  return { o, e };
 }
 
 // ---------- importazione ----------
@@ -405,29 +723,83 @@ function renderLista() {
   if (!items.length) { $("list").innerHTML = `<div class="empty">${vista === "mazzo" ? "Il mazzo è vuoto." : "L’archivio è vuoto."} Usa Aggiungi creatura per importarne una.</div>`; return; }
   $("list").innerHTML = (mostraEsempio ? `<div class="empty">Esempio: il mazzo è ancora vuoto. Questa creatura non è salvata; aggiungi la prima creatura per iniziare.</div>` : "") +
     items.map(c => { const i = info(c); return `<button class="card" data-id="${c.id}" aria-current="${c.id === sel}">
-      <div class="t"><span class="n">${esc(c.soprannome ? c.soprannome + " · " : "")}${esc(c.nome)}</span><span class="m">GS ${esc(c.gs)} · ${esc(c.tipo)}</span></div>
+      <div class="t"><span class="n">${esc(c.soprannome ? c.soprannome + " · " : "")}${esc(c.nome)}</span><span class="m">GS ${esc(gsTesto(i.gs))} · ${esc(i.e.tipo)}</span></div>
       ${barra(i)}
       <div class="chips"><span class="chip gold">Legame ${i.g}</span><span class="chip">Round ${i.roundR}/${i.round}</span>
       ${c.sopita ? `<span class="chip no">Sopita</span>` : ""}${c.prediletta && P.prediletta ? `<span class="chip gold">Prediletta</span>` : ""}
       ${(c.maturazioni || []).map(m => `<span class="chip">${esc(m.modello)}</span>`).join("")}${i.oltreGS ? `<span class="chip no">Oltre il GS max</span>` : ""}${c.esempio ? `<span class="chip ex">Esempio</span>` : ""}</div></button>`; }).join("");
 }
-function cella(k, v) { return `<div><span>${k.toUpperCase()}</span><b>${v == null ? "—" : v + " (" + fmt(mod(v)) + ")"}</b></div>`; }
+function cella(k, v, b) { return `<div><span>${k.toUpperCase()}</span><b>${v == null ? "—" : v + " (" + fmt(mod(v)) + ")"}</b>${b !== undefined && b !== v ? `<small>base ${b == null ? "—" : b}</small>` : ""}</div>`; }
+const optCar = sel => CAR6.map(k => `<option ${k === sel ? "selected" : ""}>${k}</option>`).join("");
+function htmlScelte(n, c) {
+  const dv = +c.dv || 0, opt = (arr, sel) => arr.map(x => `<option ${x === sel ? "selected" : ""}>${esc(x)}</option>`).join("");
+  if (n === "Mezzo-Drago") return `<div class="fields"><label class="f">Varietà del drago<select id="s-var">${opt(Object.keys(VARIETA))}</select></label></div>`;
+  if (n === "Mezzo-Celestiale" || n === "Mezzo-Immondo") return `<p class="note">Scegli le tre caratteristiche che ottengono +4; le altre ottengono +2.</p><div class="checks">${CAR6.map(k => `<label class="chk"><input type="checkbox" class="s-forte" value="${k}">${k}</label>`).join("")}</div>`;
+  if (n === "Creatura Fatata") {
+    const k = Math.max(1, Math.floor(dv / 4));
+    return `<p class="note">Capacità speciali: ${k} (una ogni 4 DV).</p><div class="fields">${Array.from({ length: k }, (_, j) => `<label class="f">Capacità ${j + 1}<select class="s-cf">${opt(Object.keys(CF_SPEC), Object.keys(CF_SPEC)[j % 8])}</select></label>`).join("")}
+      <label class="f wide">Dettagli (forma alternativa, terreno, energia…)<input type="text" id="s-det"></label></div>`;
+  }
+  if (n === "Creatura Mutante") {
+    const k = 1 + Math.floor(dv / 4), defs = Object.keys(DEF), muts = Object.keys(MUT);
+    return `<p class="note">Mutazioni: ${k} (1 più una ogni 4 DV), più una extra se scegli la seconda deformità.</p><div class="fields">
+      <label class="f">+4 a<select id="s-p1">${optCar("For")}</select></label><label class="f">+4 a<select id="s-p2">${optCar("Cos")}</select></label>
+      <label class="f">−2 a<select id="s-m1">${optCar("Int")}</select></label><label class="f">−2 a<select id="s-m2">${optCar("Car")}</select></label>
+      <label class="f">Deformità<select id="s-d1">${opt(defs, "Fragile")}</select></label><label class="f">Seconda deformità<select id="s-d2"><option value="">nessuna</option>${opt(defs)}</select></label>
+      <label class="f">Caratteristica mediocre (se scelta)<select id="s-med">${optCar("Sag")}</select></label>
+      ${Array.from({ length: k }, (_, j) => `<label class="f">Mutazione ${j + 1}<select class="s-mu">${opt(muts, muts[j % muts.length])}</select></label>`).join("")}
+      <label class="f">Mutazione extra<select id="s-mux"><option value="">nessuna</option>${opt(muts)}</select></label>
+      <label class="f">Abilità +3<select id="s-a1">${opt(MUT_ABIL, "Percezione")}</select></label><label class="f">Abilità +3<select id="s-a2">${opt(MUT_ABIL, "Sopravvivenza")}</select></label>
+      <label class="f wide">Dettagli (energia, velocità, incantesimo…)<input type="text" id="s-det"></label></div>`;
+  }
+  if (n === "Stirpe superiore") return `<label class="f">Blocco statistiche della nuova forma, copiato da Golarion (la forma va approvata dal master)<textarea id="s-stirpe" style="min-height:90px;font-family:var(--f-body)"></textarea></label>`;
+  return "";
+}
+function leggiScelte(n, c) {
+  const v = id => ($(id) || {}).value || "";
+  if (n === "Mezzo-Drago") return { scelte: { varieta: v("s-var") } };
+  if (n === "Mezzo-Celestiale" || n === "Mezzo-Immondo") {
+    const forti = [...document.querySelectorAll(".s-forte:checked")].map(x => x.value);
+    return forti.length === 3 ? { scelte: { forti } } : { err: `Scegli esattamente tre caratteristiche a +4 (ne hai scelte ${forti.length}).` };
+  }
+  if (n === "Creatura Fatata") return { scelte: { speciali: [...document.querySelectorAll(".s-cf")].map(x => x.value), det: v("s-det").trim() } };
+  if (n === "Creatura Mutante") {
+    const piu = [v("s-p1"), v("s-p2")], meno = [v("s-m1"), v("s-m2")], d1 = v("s-d1"), d2 = v("s-d2");
+    if (piu[0] === piu[1]) return { err: "Il +4 va a due caratteristiche diverse." };
+    if (meno[0] === meno[1]) return { err: "Il −2 va a due caratteristiche diverse." };
+    if (piu.some(k => meno.includes(k))) return { err: "Una caratteristica non può avere sia +4 sia −2." };
+    if (d1 === d2) return { err: "Le due deformità devono essere diverse." };
+    if ([d1, d2].includes("Cecità") && [d1, d2].includes("Cecità alla luce")) return { err: "Cecità alla luce non si può prendere insieme a Cecità." };
+    if (v("s-mux") && !d2) return { err: "La mutazione extra richiede la seconda deformità." };
+    if (v("s-a1") === v("s-a2")) return { err: "Scegli due abilità diverse per il +3." };
+    const mutazioni = [...document.querySelectorAll(".s-mu")].map(x => x.value).concat(d2 && v("s-mux") ? [v("s-mux")] : []);
+    return { scelte: { piu, meno, deformita: [d1, d2].filter(Boolean), mediocre: v("s-med"), mutazioni, abilita: [v("s-a1"), v("s-a2")], det: v("s-det").trim() } };
+  }
+  if (n === "Stirpe superiore") {
+    const s = parseStat(v("s-stirpe"));
+    if (!s.nome || !s.pf) return { err: "Incolla il blocco statistiche completo della nuova forma (servono almeno nome e PF)." };
+    if (C.some(o => o.id !== c.id && chiave(o.nome) === chiave(s.nome))) return { err: `Possiedi già un’altra creatura ${s.nome} (regola di unicità).` };
+    return { scelte: {}, base: { nome: s.nome, gs: s.gs || c.gs, dv: s.dv || c.dv, pf: s.pf, int: s.car && s.car.Int !== undefined ? s.car.Int : c.int, tipo: s.tipo || c.tipo, sotto: s.sotto || "", stat: s } };
+  }
+  return { scelte: {} };
+}
+let avvisoMat = null;
 function renderDettaglio() {
   const c = C.find(x => x.id === sel) || (C.length === 0 ? ESEMPIO : null);
   const el = $("detail");
   if (!c) { el.innerHTML = `<h2>Scheda</h2><div class="empty">Scegli una creatura dall’elenco per vederne la scheda e aggiornarne lo stato.</div>`; return; }
-  const i = info(c), s = c.stat || {}, g = i.g;
-  const add = v => v === "" || v == null || isNaN(parseInt(v)) ? "—" : fmt(parseInt(v) + g);
-  const caM = (s.ca || "").match(/^(\d+)(.*?impreparat[oa]\s*)(\d+)(.*)$/i);
-  const ca = caM ? `${+caM[1] + g}${caM[2]}${+caM[3] + g}${caM[4]}` : (s.ca || "—");
+  const i = info(c), g = i.g, { o, e } = scheda(c, g), s0 = c.stat || {}, mats = c.maturazioni || [];
+  const tsv = v => v == null ? "—" : fmt(v);
   const line = (lab, v) => v ? `<p><span class="lab">${lab}</span> ${esc(v)}</p>` : "";
-  const car = s.car || {};
+  const car = o.car || {}, car0 = s0.car || {};
   const matOpts = MODELLI.map(([gr, n, gsTxt]) => `<option value="${n}" ${i.d.liv < MOD_LIV[n] ? "disabled" : ""}>${gr}. ${n} (GS ${gsTxt}${i.d.liv < MOD_LIV[n] ? `, dal ${MOD_LIV[n]}°` : ""})</option>`).join("");
+  const primo = MODELLI.find(([, n]) => i.d.liv >= MOD_LIV[n]);
   const ro = c.esempio ? "disabled" : "";
+  const avv = avvisoMat; avvisoMat = null;
   el.innerHTML = `
   <div class="sheet">
     <div class="head"><h2>${esc(c.soprannome ? c.soprannome + " · " : "")}${esc(c.nome)}</h2>
-      <div class="note">GS ${esc(c.gs)} · ${esc([s.all, c.tipo + (c.sotto ? ` (${c.sotto})` : ""), s.taglia].filter(Boolean).join(" "))} · ${c.dv} DV · ${esc(c.rarita || "")}${c.catturataIl ? ` · sigillata il ${esc(c.catturataIl)} con carta ${esc(c.carta || "")}` : ""}</div></div>
+      <div class="note">GS ${esc(o.gs)}${o.gs !== String(c.gs) ? ` (base ${esc(c.gs)})` : ""} · ${esc([s0.all, o.tipo + (o.sotto ? ` (${o.sotto})` : ""), o.taglia].filter(Boolean).join(" "))} · ${c.dv} DV · ${esc(c.rarita || "")}${c.catturataIl ? ` · sigillata il ${esc(c.catturataIl)} con carta ${esc(c.carta || "")}` : ""}</div></div>
     ${barra(i)}
     <div class="act">
       <label class="f">Danni<input type="number" id="x-danni" min="0" value="" placeholder="0" ${ro}></label>
@@ -448,26 +820,31 @@ function renderDettaglio() {
       <p><span class="lab">Richiamo</span> ${i.round} round · comando speciale: ${i.d.comando}</p>
       ${i.oltreGS ? `<p class="msg no">Il GS di questa creatura supera il tuo GS max (${i.d.gsMax}).</p>` : ""}
     </div>
-    <div class="blk"><h3>Maturazioni ${(c.maturazioni || []).length}/${i.matMax}</h3>
-      ${(c.maturazioni || []).length ? `<ul class="mat">${c.maturazioni.map((m, k) => `<li>${esc(m.modello)}${m.data ? ` <span class="note">(${esc(m.data)})</span>` : ""} <button class="btn small ghost" data-rmmat="${k}" ${ro}>Rimuovi</button></li>`).join("")}</ul>` : `<p class="note">Nessuna maturazione.</p>`}
-      <div class="row"><select id="x-mod" style="max-width:320px" ${ro}>${matOpts}</select><button class="btn small" id="x-addmat" ${ro}>Aggiungi</button></div>
-      <p class="note">Dopo una maturazione aggiorna qui sotto GS, DV e PF se cambiano.</p>
+    <div class="blk"><h3>Maturazioni ${mats.length}/${i.matMax}</h3>
+      ${mats.length ? `<ul class="mat">${mats.map((m, k) => `<li><b>${esc(m.modello)}</b>${m.data ? ` <span class="note">(${esc(m.data)})</span>` : ""}${k === mats.length - 1 ? ` <button class="btn small ghost" id="x-rmmat" ${ro}>Annulla l’ultima</button>` : ""}</li>`).join("")}</ul>` : `<p class="note">Nessuna maturazione.</p>`}
+      ${e.riep.length ? `<ul class="mat note">${e.riep.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+      ${e.avvisi.map(t => `<p class="msg warn">${esc(t)}</p>`).join("")}
+      ${avv ? `<p class="msg ${avv.cls}">${esc(avv.t)}</p>` : ""}
+      <div class="row"><select id="x-mod" style="max-width:320px" ${ro}>${matOpts.replace(`value="${primo ? primo[1] : ""}"`, `value="${primo ? primo[1] : ""}" selected`)}</select><button class="btn small" id="x-addmat" ${ro}>Aggiungi</button></div>
+      <p class="msg no" id="m-mat" hidden></p>
+      <div id="x-scelte">${primo ? htmlScelte(primo[1], c) : ""}</div>
+      <p class="note">Gli effetti delle maturazioni e del Legame sono già applicati alla scheda qui sotto. Il campo GS è il GS base, senza maturazioni.</p>
     </div>
     <div class="fields">
       <label class="f">Nome proprio<input type="text" id="x-sopr" value="${esc(c.soprannome)}" ${ro}></label>
-      <label class="f">GS<input type="text" id="x-gs" value="${esc(c.gs)}" ${ro}></label>
+      <label class="f">GS base<input type="text" id="x-gs" value="${esc(c.gs)}" ${ro}></label>
       <label class="f">DV<input type="number" id="x-dv" value="${+c.dv || 0}" ${ro}></label>
       <label class="f">PF totali (scheda)<input type="number" id="x-pf" value="${+c.pf || 0}" ${ro}></label>
       <label class="f">Luogo<select id="x-luogo" ${ro}><option value="mazzo" ${c.luogo === "mazzo" ? "selected" : ""}>Mazzo</option><option value="archivio" ${c.luogo === "archivio" ? "selected" : ""}>Archivio</option></select></label>
       <label class="f wide">Note<textarea id="x-note" style="min-height:60px;font-family:var(--f-body);font-size:.95rem" ${ro}>${esc(c.note)}</textarea></label>
     </div>
-    <div class="blk"><h3>Difesa</h3>${line("CA", ca)}
+    <div class="blk"><h3>Difesa</h3>${line("CA", o.ca)}
       <p><span class="lab">Punti Fatica</span> ${i.fat} · <span class="lab">Punti Ferita</span> ${i.fer} <span class="note">(totale ${i.tot})</span></p>
-      <p><span class="lab">Tiri Salvezza</span> Tempra ${add(s.temp)}, Riflessi ${add(s.rifl)}, Volontà ${add(s.vol)}</p>${line("Difese", s.difese)}</div>
-    <div class="blk"><h3>Attacco</h3>${line("Velocità", s.vel)}${s.mischia ? `<p><span class="lab">Mischia</span> ${esc(s.mischia)}${g ? ` <em>(+${g} TxC e danni)</em>` : ""}</p>` : ""}${s.distanza ? `<p><span class="lab">Distanza</span> ${esc(s.distanza)}${g ? ` <em>(+${g} TxC e danni)</em>` : ""}</p>` : ""}${line("Spazio", s.spazio)}${line("Attacchi Speciali", s.attsp)}${s.magiche ? `<p class="pre">${esc(s.magiche)}</p>` : ""}</div>
-    <div class="blk"><h3>Statistiche</h3><div class="stats6">${["For","Des","Cos","Int","Sag","Car"].map(k => cella(k, car[k])).join("")}</div>
-      ${line("Iniziativa", s.iniz)}${line("Sensi", s.sensi)}${line("BAB", s.bab)}${line("BMC", s.bmc)}${line("DMC", s.dmc)}${line("Talenti", s.talenti)}${line("Abilità", s.abilita)}${line("Linguaggi", s.linguaggi)}${line("Qualità Speciali", s.qs)}</div>
-    ${s.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(s.speciali)}</p></div>` : ""}
+      <p><span class="lab">Tiri Salvezza</span> Tempra ${tsv(o.temp)}, Riflessi ${tsv(o.rifl)}, Volontà ${tsv(o.vol)}</p>${line("Difese", o.difese)}</div>
+    <div class="blk"><h3>Attacco</h3>${line("Velocità", o.vel)}${line("Mischia", o.mischia)}${o.nuoviAtt ? `<p><span class="lab">Attacchi naturali della maturazione</span> ${esc(o.nuoviAtt)} <span class="note">(se la creatura ha già questi attacchi, usa il danno migliore)</span></p>` : ""}${line("Distanza", o.distanza)}${line("Spazio", o.spazio)}${line("Attacchi Speciali", o.attsp)}${o.magiche ? `<p class="pre">${esc(o.magiche)}</p>` : ""}</div>
+    <div class="blk"><h3>Statistiche</h3><div class="stats6">${CAR6.map(k => cella(k, car[k], e.attive ? (car0[k] ?? null) : undefined)).join("")}</div>
+      ${line("Iniziativa", o.iniz)}${line("Sensi", o.sensi)}${line("BAB", o.bab)}${line("BMC", o.bmc)}${line("DMC", o.dmc)}${line("Talenti", o.talenti)}${line("Abilità", o.abilita)}${line("Linguaggi", o.linguaggi)}${line("Qualità Speciali", o.qs)}</div>
+    ${o.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(o.speciali)}</p></div>` : ""}
     <div class="blk"><h3>Scheda per il giocatore</h3>
       <div class="checks"><label class="chk"><input type="checkbox" id="x-man" checked>Legame, richiamo e maturazioni da compilare</label><label class="chk"><input type="checkbox" id="x-pre">Precompila con i valori attuali</label></div>
       <div class="row"><button class="btn small" id="x-pdf">Scarica PDF</button><button class="btn small ghost" id="x-exp">Esporta la creatura (.json)</button>
@@ -492,16 +869,28 @@ function bindDettaglio(c) {
     for (const o of C) if (o.prediletta && o.id !== c.id) { o.prediletta = false; await salvaCreatura(o); }
     c.prediletta = e.target.checked; salvaE();
   });
+  on("x-mod", "change", () => { $("x-scelte").innerHTML = htmlScelte($("x-mod").value, c); });
   on("x-addmat", "click", () => {
-    const i = info(c), n = $("x-mod").value, m = $("m-x"); m.hidden = false;
+    const i = info(c), n = $("x-mod").value, mats = c.maturazioni || [], e0 = i.e;
+    const no = t => { document.querySelectorAll(".blk .msg.ok").forEach(x => x.remove()); const m = $("m-mat"); m.hidden = false; m.textContent = t; };
     const gruppo = (MODELLI.find(x => x[1] === n) || [])[0];
-    if ((c.maturazioni || []).length >= i.matMax) { m.className = "msg no"; m.textContent = `Limite di maturazioni raggiunto (${i.matMax}).`; return; }
-    if (n !== "Stirpe superiore" && (c.maturazioni || []).some(x => x.modello === n)) { m.className = "msg no"; m.textContent = `${n} è già applicato: ogni modello si applica una sola volta.`; return; }
-    if ((gruppo === "B" || gruppo === "C") && (c.maturazioni || []).some(x => ["B", "C"].includes((MODELLI.find(y => y[1] === x.modello) || [])[0]))) { m.className = "msg no"; m.textContent = "Una creatura può avere un solo modello tra Affinità e Retaggio."; return; }
-    c.maturazioni = [...(c.maturazioni || []), { modello: n, data: new Date().toISOString().slice(0, 10) }];
-    m.className = "msg ok"; m.textContent = `${n} aggiunto. Ricorda di aggiornare GS e statistiche.`; salvaE();
+    if (mats.length >= i.matMax) return no(`Limite di maturazioni raggiunto (${i.matMax}).`);
+    if (n !== "Stirpe superiore" && mats.some(x => x.modello === n)) return no(`${n} è già applicato: ogni modello si applica una sola volta.`);
+    if ((gruppo === "B" || gruppo === "C") && mats.some(x => ["B", "C"].includes((MODELLI.find(y => y[1] === x.modello) || [])[0]))) return no("Una creatura può avere un solo modello tra Affinità e Retaggio.");
+    if (n === "Animale Fatato" && e0.tipo !== "Animale") return no("Animale Fatato si applica solo agli Animali.");
+    if (n === "Creatura Fatata" && e0.tipo === "Animale") return no("Per gli Animali si usa Animale Fatato.");
+    if (n === "Gigante" && e0.t >= 8) return no("Gigante non si applica alle creature Colossali.");
+    if ((n === "Mezzo-Celestiale" || n === "Mezzo-Immondo") && !(e0.car.Int >= 4)) return no(`${n} richiede Intelligenza 4 o più.`);
+    const r = leggiScelte(n, c); if (r.err) return no(r.err);
+    const voce = { modello: n, data: new Date().toISOString().slice(0, 10), scelte: r.scelte };
+    const prova = { ...c, ...(r.base || {}), maturazioni: [...mats, voce] }, e1 = mat(prova);
+    if (e1.gs > gsLimite(e1.tipo) + 1e-9) return no(`Con ${n} il GS diventerebbe ${gsTesto(e1.gs)}, oltre il tuo GS max (${gsLimite(e1.tipo)}).`);
+    if (e1.car.Int != null && e1.car.Int > i.d.intLimit && !(e0.car.Int != null && e0.car.Int >= e1.car.Int)) return no(`Con ${n} l’Intelligenza diventerebbe ${e1.car.Int}, oltre il tuo limite (${i.d.intLimit}).`);
+    if (r.base) { voce.scelte.prima = { nome: c.nome, gs: c.gs, dv: c.dv, pf: c.pf, int: c.int, tipo: c.tipo, sotto: c.sotto, stat: c.stat }; Object.assign(c, r.base); }
+    c.maturazioni = [...mats, voce];
+    avvisoMat = { cls: "ok", t: `${n} applicato: ora la creatura è GS ${gsTesto(e1.gs)}. La scheda qui sotto è già aggiornata.` }; salvaE();
   });
-  document.querySelectorAll("[data-rmmat]").forEach(b => b.addEventListener("click", () => { c.maturazioni.splice(+b.dataset.rmmat, 1); salvaE(); }));
+  on("x-rmmat", "click", () => { const v = (c.maturazioni || []).pop(); if (v && v.modello === "Stirpe superiore" && v.scelte && v.scelte.prima) Object.assign(c, v.scelte.prima); avvisoMat = v ? { cls: "ok", t: `${v.modello} annullato.` } : null; salvaE(); });
   const campo = (id, k, conv = v => v) => on(id, "change", e => { c[k] = conv(e.target.value); salvaE(); });
   campo("x-sopr", "soprannome", v => v.trim()); campo("x-gs", "gs", v => v.trim()); campo("x-dv", "dv", v => +v || 0); campo("x-pf", "pf", v => +v || 0); campo("x-note", "note");
   on("x-luogo", "change", e => {
@@ -532,7 +921,7 @@ async function scarica(m, crea, nome) {
 const pdfSafe = s => String(s ?? "").replace(/−/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
 function pdf(c) {
   if (!window.jspdf) throw new Error("jspdf");
-  const i = info(c), s = c.stat || {}, man = $("x-man").checked, pre = $("x-pre").checked, g = man ? 0 : i.g;
+  const i = info(c), man = $("x-man").checked, pre = $("x-pre").checked, g = man ? 0 : i.g, s = scheda(c, g).o;
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, M = 16, CW = W - 2 * M; let y = 18;
   const np = h => { if (y + h > 282) { doc.addPage(); y = 18; } };
@@ -543,7 +932,7 @@ function pdf(c) {
   const tit = t => { y += 2; np(10); doc.setDrawColor(168, 122, 31); doc.setLineWidth(.4); doc.line(M, y, W - M, y); y += 5; doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(14, 106, 102); doc.text(pdfSafe(t).toUpperCase(), M, y); y += 5.5; };
   doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(30, 35, 43); doc.text(pdfSafe((c.soprannome ? c.soprannome + " - " : "") + c.nome), M, y); y += 7;
   doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(86, 96, 107);
-  doc.text(pdfSafe(`GS ${c.gs} - ${[s.all, c.tipo + (c.sotto ? ` (${c.sotto})` : ""), s.taglia].filter(Boolean).join(" ")} - ${c.dv} DV`), M, y); y += 5;
+  doc.text(pdfSafe(`GS ${s.gs} - ${[s.all, s.tipo + (s.sotto ? ` (${s.sotto})` : ""), s.taglia].filter(Boolean).join(" ")} - ${c.dv} DV`), M, y); y += 5;
   const top = y + 2, H = man ? 38 : 16; doc.setFillColor(251, 244, 228); doc.setDrawColor(168, 122, 31); doc.roundedRect(M, top, CW, H, 2, 2, "FD");
   if (man) {
     const cf = (lab, nm, val, cx, cy, w) => { doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(30, 35, 43); doc.text(pdfSafe(lab), cx, cy);
@@ -554,21 +943,20 @@ function pdf(c) {
     cf("Livello sigillatore", "livello", `${i.d.liv}°`, M + 4, top + 7, c3 - 6); cf("Grado di Legame", "legame", String(i.g), M + 4 + c3, top + 7, c3 - 6); cf("Round di richiamo", "richiamo", String(i.round), M + 4 + 2 * c3, top + 7, c3 - 8);
     cf("Comando speciale", "comando", i.d.comando, M + 4, top + 14.5, CW - 8); cf("Maturazioni", "maturazioni", (c.maturazioni || []).map(x => x.modello).join(", "), M + 4, top + 22, CW - 8);
     doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(86, 96, 107);
-    doc.splitTextToSize(pdfSafe("Ogni grado di Legame: +1 ai tiri per colpire e ai danni, +1 all'armatura naturale (CA), +1 ai Tiri Salvezza, +1 PF per DV (metà Punti Fatica, metà Punti Ferita). Le statistiche qui sotto sono quelle base, senza Legame."), CW - 8).forEach((r, k) => doc.text(r, M + 4, top + 29 + k * 3.7));
+    doc.splitTextToSize(pdfSafe("Ogni grado di Legame: +1 ai tiri per colpire e ai danni, +1 all'armatura naturale (CA), +1 ai Tiri Salvezza, +1 PF per DV (metà Punti Fatica, metà Punti Ferita). Le statistiche qui sotto comprendono le maturazioni ma non il Legame."), CW - 8).forEach((r, k) => doc.text(r, M + 4, top + 29 + k * 3.7));
   } else {
     doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(30, 35, 43);
     doc.text(pdfSafe(`Legame: grado ${i.g} - Richiamo: ${i.round} round - Comando speciale: ${i.d.comando}`), M + 4, top + 6.5);
     doc.text(pdfSafe(`Maturazioni: ${(c.maturazioni || []).map(x => x.modello).join(", ") || "nessuna"}`), M + 4, top + 12);
   }
   y = top + H + 3;
-  const tot = (+c.pf || 0) + g * (+c.dv || 0) + (P.vigore ? +c.dv || 0 : 0);
-  const caM = (s.ca || "").match(/^(\d+)(.*?impreparat[oa]\s*)(\d+)(.*)$/i);
-  const add = v => v === "" || v == null || isNaN(parseInt(v)) ? "-" : fmt(parseInt(v) + g);
-  tit("Difesa"); campo("CA", caM ? `${+caM[1] + g}${caM[2]}${+caM[3] + g}${caM[4]}` : s.ca);
+  const tot = Math.max(1, (+c.pf || 0) + i.e.pfPiu + g * (+c.dv || 0) + (P.vigore ? +c.dv || 0 : 0));
+  const add = v => v == null ? "-" : segno(v);
+  tit("Difesa"); campo("CA", s.ca);
   campo("Punti Fatica", `${Math.floor(tot / 2)}  -  Punti Ferita ${Math.ceil(tot / 2)}  (totale ${tot}${P.vigore ? ", con Vigore del legame" : ""})`);
   campo("Tiri Salvezza", `Tempra ${add(s.temp)}, Riflessi ${add(s.rifl)}, Volontà ${add(s.vol)}`); campo("Difese", s.difese);
-  tit("Attacco"); campo("Velocità", s.vel); const ba = man ? " [+ grado di Legame a TxC e danni]" : g ? ` [+${g} TxC e danni per il Legame]` : "";
-  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Spazio", s.spazio); campo("Attacchi Speciali", s.attsp); if (s.magiche) testo(s.magiche);
+  tit("Attacco"); campo("Velocità", s.vel); const ba = man ? " [+ grado di Legame a TxC e danni]" : "";
+  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.nuoviAtt) campo("Attacchi naturali della maturazione", s.nuoviAtt + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Spazio", s.spazio); campo("Attacchi Speciali", s.attsp); if (s.magiche) testo(s.magiche);
   tit("Statistiche"); const car = s.car || {}; campo("Caratteristiche", ["For","Des","Cos","Int","Sag","Car"].map(k => `${k} ${car[k] == null ? "-" : car[k]}`).join(", "));
   campo("Iniziativa", s.iniz); campo("Sensi", s.sensi); campo("BAB", s.bab); campo("BMC", s.bmc); campo("DMC", s.dmc); campo("Talenti", s.talenti); campo("Abilità", s.abilita); campo("Linguaggi", s.linguaggi); campo("Qualità Speciali", s.qs);
   if (s.speciali) { tit("Capacità speciali"); s.speciali.split("\n").filter(Boolean).forEach(p => { testo(p); y += 1; }); }
