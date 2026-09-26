@@ -212,7 +212,8 @@ const MODELLI = [
 const MOD_LIV = { "Avanzato": 4, "Gigante": 4, "Stirpe superiore": 4, "Celestiale": 8, "Immondo": 8, "Entropico": 8, "Risoluto": 8, "Animale Fatato": 7, "Creatura Fatata": 7, "Creatura Mutante": 7, "Mezzo-Drago": 11, "Mezzo-Celestiale": 11, "Mezzo-Immondo": 11 };
 
 function parseStat(txt) {
-  let t = String(txt || "").replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-");
+  let t = String(txt || "").replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-").replace(/[‒―]/g, "—")
+    .replace(/[ \t]+((?:Capacità Magiche|Incantesimi (?:Conosciuti|Preparati))(?![\wÀ-ÿ]))/g, "\n$1");
   // Golarion inserisce tra "Categoria" e "Iniziativa" i riquadri che descrivono tipo e sottotipo: vanno ignorati
   const mCat = t.match(/^[ \t]*Categoria\b[^\n]*\n/m), mIni = t.match(/^[ \t]*Iniz(?:iativa)?\b/m);
   if (mCat && mIni && mIni.index > mCat.index) t = t.slice(0, mCat.index + mCat[0].length) + t.slice(mIni.index);
@@ -249,8 +250,12 @@ function parseStat(txt) {
   d.mischia = L("Mischia"); d.distanza = L("Distanza");
   d.spazio = L("Spazio", "([^\\n;]+)"); d.portata = L("Portata", "([^\\n;]+)");
   d.attsp = L("Attacchi Speciali");
-  const mag = t.match(/^[ \t]*(Capacità Magiche[^\n]*(?:\n(?![ \t]*(?:STATISTICHE|Statistiche|Caratteristiche|Incantesimi|Spazio|Portata|Attacchi|Bonus di Attacco|For(?:za)?\s*:?\s*\d)).+)*)/m);
-  d.magiche = mag ? mag[1].trim() : "";
+  // blocchi a elenco (capacità magiche, incantesimi): l'intestazione e le righe con frequenza o livello, anche separate da righe vuote
+  const CONT = /^[ \t]*(?:$|A [Vv]olont|Costant|Sempre|\d+\s*\/\s*(?:giorno|settimana|mese|anno)|\d+°|0\s*\(|[•·—-]\s|D\s|Domini|Scuola|Stirpe|Mistero|Patrono|Opposizion|Spiriti)/;
+  const blocco = lab => { const r = t.split("\n"), i = r.findIndex(l => new RegExp("^[ \\t]*(?:" + lab + ")(?![\\wÀ-ÿ])").test(l)); if (i < 0) return "";
+    const out = [r[i].trim()]; for (let k = i + 1; k < r.length && CONT.test(r[k]); k++) if (r[k].trim()) out.push(r[k].trim()); return out.join("\n"); };
+  d.magiche = blocco("Capacità Magiche");
+  d.incantesimi = [blocco("Incantesimi Conosciuti"), blocco("Incantesimi Preparati")].filter(Boolean).join("\n");
   const car = (full, ab) => { const m = t.match(new RegExp("\\b(?:" + full + "|" + ab + ")\\b\\s*:?\\s*(\\d+|—|–|-)")); return m ? (/^\d+$/.test(m[1]) ? +m[1] : null) : undefined; };
   d.car = { For: car("Forza", "For"), Des: car("Destrezza", "Des"), Cos: car("Costituzione", "Cos"), Int: car("Intelligenza", "Int"), Sag: car("Saggezza", "Sag"), Car: car("Carisma", "Car") };
   d.bab = g(/(?:Bonus di Attacco Base|Attacco Base|Att Base|BAB)\s*:?\s*([+-]?\d+)/);
@@ -789,7 +794,21 @@ function leggiScelte(n, c) {
   }
   return { scelte: {} };
 }
-let avvisoMat = null;
+let avvisoMat = null, avvisoEd = null;
+const CAMPI_ED = [["ca", "CA", 1], ["temp", "Tempra", 0], ["rifl", "Riflessi", 0], ["vol", "Volontà", 0], ["difese", "Difese", 2], ["vel", "Velocità", 0],
+  ["mischia", "Mischia", 2], ["distanza", "Distanza", 1], ["attsp", "Attacchi Speciali", 2], ["spazio", "Spazio", 0], ["portata", "Portata", 0],
+  ["magiche", "Capacità magiche", 6], ["incantesimi", "Incantesimi", 6], ["iniz", "Iniziativa", 0], ["sensi", "Sensi", 1], ["bab", "BAB", 0], ["bmc", "BMC", 0], ["dmc", "DMC", 1],
+  ["talenti", "Talenti", 2], ["abilita", "Abilità", 2], ["linguaggi", "Linguaggi", 1], ["qs", "Qualità Speciali", 1], ["speciali", "Capacità speciali", 8]];
+function htmlEditor(c, ro) {
+  const s = c.stat || {}, car = s.car || {};
+  const a = avvisoEd; avvisoEd = null;
+  return `<details class="blk" id="x-ed-box" ${a ? "open" : ""}><summary class="note" style="cursor:pointer">Modifica la scheda a mano</summary>${a ? `<p class="msg ok">${esc(a)}</p>` : ""}
+    <p class="note">Correggi o togli ciò che la creatura non deve avere (per esempio Teletrasporto o Invisibilità). Qui si modifica la scheda base: Legame e maturazioni vengono applicati sopra. Per le caratteristiche lascia vuoto se la creatura non ne ha il punteggio.</p>
+    <div class="fields">${CAR6.map(k => `<label class="f">${k}<input type="text" inputmode="numeric" data-edcar="${k}" value="${car[k] == null ? "" : car[k]}" ${ro}></label>`).join("")}</div>
+    <div class="fields">${CAMPI_ED.map(([k, lab, r]) => r ? `<label class="f wide">${lab}<textarea data-ed="${k}" rows="${r}" style="min-height:0;font-family:var(--f-body);font-size:.95rem" ${ro}>${esc(s[k] ?? "")}</textarea></label>`
+      : `<label class="f">${lab}<input type="text" data-ed="${k}" value="${esc(s[k] ?? "")}" ${ro}></label>`).join("")}</div>
+    <div class="row"><button class="btn small" id="x-ed-ok" ${ro}>Salva le modifiche</button></div></details>`;
+}
 function renderDettaglio() {
   const c = C.find(x => x.id === sel) || (C.length === 0 ? ESEMPIO : null);
   const el = $("detail");
@@ -848,7 +867,7 @@ function renderDettaglio() {
     <div class="blk"><h3>Difesa</h3>${line("CA", o.ca)}
       <p><span class="lab">Punti Fatica</span> ${i.fat} · <span class="lab">Punti Ferita</span> ${i.fer} <span class="note">(totale ${i.tot})</span></p>
       <p><span class="lab">Tiri Salvezza</span> Tempra ${tsv(o.temp)}, Riflessi ${tsv(o.rifl)}, Volontà ${tsv(o.vol)}</p>${line("Difese", o.difese)}</div>
-    <div class="blk"><h3>Attacco</h3>${line("Velocità", o.vel)}${line("Mischia", o.mischia)}${o.nuoviAtt ? `<p><span class="lab">Attacchi naturali della maturazione</span> ${esc(o.nuoviAtt)} <span class="note">(se la creatura ha già questi attacchi, usa il danno migliore)</span></p>` : ""}${line("Distanza", o.distanza)}${line("Attacchi Speciali", o.attsp)}${line("Spazio", spazioPortata(o))}${o.magiche ? `<p class="pre">${esc(o.magiche)}</p>` : ""}</div>
+    <div class="blk"><h3>Attacco</h3>${line("Velocità", o.vel)}${line("Mischia", o.mischia)}${o.nuoviAtt ? `<p><span class="lab">Attacchi naturali della maturazione</span> ${esc(o.nuoviAtt)} <span class="note">(se la creatura ha già questi attacchi, usa il danno migliore)</span></p>` : ""}${line("Distanza", o.distanza)}${line("Attacchi Speciali", o.attsp)}${line("Spazio", spazioPortata(o))}${o.magiche ? `<p class="pre">${esc(o.magiche)}</p>` : ""}${o.incantesimi ? `<p class="pre">${esc(o.incantesimi)}</p>` : ""}</div>
     <div class="blk"><h3>Statistiche</h3><div class="stats6">${CAR6.map(k => cella(k, car[k], e.attive ? (car0[k] ?? null) : undefined)).join("")}</div>
       ${line("Iniziativa", o.iniz)}${line("Sensi", o.sensi)}${line("BAB", o.bab)}${line("BMC", o.bmc)}${line("DMC", o.dmc)}${line("Talenti", o.talenti)}${line("Abilità", o.abilita)}${line("Linguaggi", o.linguaggi)}${line("Qualità Speciali", o.qs)}</div>
     ${o.speciali ? `<div class="blk"><h3>Capacità speciali</h3><p class="pre">${esc(o.speciali).replace(/^(.{2,70}\((?:Str|Sop|Mag)[^)\n]*\))[ \t]*$/gm, "<b>$1</b>")}</p></div>` : ""}
@@ -857,6 +876,7 @@ function renderDettaglio() {
       <textarea id="x-reimp" style="min-height:90px" ${ro}></textarea>
       <div class="row"><button class="btn small" id="x-reimp-ok" ${ro}>Sostituisci le statistiche</button></div>
       <p class="msg" id="m-reimp" hidden></p></details>
+    ${htmlEditor(c, ro)}
     <div class="blk"><h3>Scheda per il giocatore</h3>
       <div class="checks"><label class="chk"><input type="checkbox" id="x-man" checked>Legame, richiamo e maturazioni da compilare</label><label class="chk"><input type="checkbox" id="x-pre">Precompila con i valori attuali</label></div>
       <div class="row"><button class="btn small" id="x-pdf">Scarica PDF</button><button class="btn small ghost" id="x-exp">Esporta la creatura (.json)</button>
@@ -918,6 +938,12 @@ function bindDettaglio(c) {
     c.stat = st; if (st.gs) c.gs = st.gs; if (st.pf) c.pf = st.pf; if (st.dv) c.dv = st.dv; if (st.car && st.car.Int !== undefined) c.int = st.car.Int; if (st.tipo) { c.tipo = st.tipo; c.sotto = st.sotto || ""; }
     avvisoMat = { cls: "ok", t: "Statistiche sostituite." }; salvaE();
   });
+  on("x-ed-ok", "click", () => {
+    const st = { ...(c.stat || {}), car: { ...((c.stat || {}).car || {}) } };
+    document.querySelectorAll("[data-ed]").forEach(el => { st[el.dataset.ed] = el.value.trim(); });
+    document.querySelectorAll("[data-edcar]").forEach(el => { const v = el.value.trim(); st.car[el.dataset.edcar] = /^\d+$/.test(v) ? +v : null; });
+    c.stat = st; c.int = st.car.Int; avvisoEd = "Modifiche salvate: la scheda qui sopra è aggiornata."; salvaE();
+  });
   on("x-luogo", "change", e => {
     const m = $("m-x");
     if (e.target.value === "mazzo" && C.filter(x => x.luogo === "mazzo").length >= D().mazzo) { m.hidden = false; m.className = "msg no"; m.textContent = "Il mazzo è pieno: sposta prima un’altra creatura nell’archivio."; e.target.value = "archivio"; return; }
@@ -943,7 +969,7 @@ async function scarica(m, crea, nome) {
     await downloads.save({ filename: nome, data }); m.className = "msg ok"; m.textContent = `Pronto: ${nome}`;
   } catch (e) { m.className = "msg warn"; m.textContent = e && e.code === "declined" ? "Download annullato." : "Il download non è riuscito: riprova tra qualche secondo."; }
 }
-const pdfSafe = s => String(s ?? "").replace(/−/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
+const pdfSafe = s => String(s ?? "").replace(/[−‒―]/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
 function pdf(c) {
   if (!window.jspdf) throw new Error("jspdf");
   const i = info(c), man = $("x-man").checked, pre = $("x-pre").checked, g = man ? 0 : i.g, s = scheda(c, g).o;
@@ -981,7 +1007,7 @@ function pdf(c) {
   campo("Punti Fatica", `${Math.floor(tot / 2)}  -  Punti Ferita ${Math.ceil(tot / 2)}  (totale ${tot}${P.vigore ? ", con Vigore del legame" : ""})`);
   campo("Tiri Salvezza", `Tempra ${add(s.temp)}, Riflessi ${add(s.rifl)}, Volontà ${add(s.vol)}`); campo("Difese", s.difese);
   tit("Attacco"); campo("Velocità", s.vel); const ba = man ? " [+ grado di Legame a TxC e danni]" : "";
-  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.nuoviAtt) campo("Attacchi naturali della maturazione", s.nuoviAtt + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Attacchi Speciali", s.attsp); campo("Spazio", spazioPortata(s)); if (s.magiche) testo(s.magiche);
+  if (s.mischia) campo("Mischia", s.mischia + ba); if (s.nuoviAtt) campo("Attacchi naturali della maturazione", s.nuoviAtt + ba); if (s.distanza) campo("Distanza", s.distanza + ba); campo("Attacchi Speciali", s.attsp); campo("Spazio", spazioPortata(s)); if (s.magiche) testo(s.magiche); if (s.incantesimi) testo(s.incantesimi);
   tit("Statistiche"); const car = s.car || {}; campo("Caratteristiche", ["For","Des","Cos","Int","Sag","Car"].map(k => `${k} ${car[k] == null ? "-" : car[k]}`).join(", "));
   campo("Iniziativa", s.iniz); campo("Sensi", s.sensi); campo("BAB", s.bab); campo("BMC", s.bmc); campo("DMC", s.dmc); campo("Talenti", s.talenti); campo("Abilità", s.abilita); campo("Linguaggi", s.linguaggi); campo("Qualità Speciali", s.qs);
   if (s.speciali) { tit("Capacità speciali"); s.speciali.split("\n").filter(Boolean).forEach(p => { testo(p); y += 1; }); }

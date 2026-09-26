@@ -521,7 +521,8 @@ function calcola() {
 
 // ------- importazione -------
 function parseStat(txt) {
-  let t = String(txt || "").replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-");
+  let t = String(txt || "").replace(/\r/g, "").replace(/ /g, " ").replace(/[‐‑–]/g, "-").replace(/−/g, "-").replace(/[‒―]/g, "—")
+    .replace(/[ \t]+((?:Capacità Magiche|Incantesimi (?:Conosciuti|Preparati))(?![\wÀ-ÿ]))/g, "\n$1");
   // Golarion inserisce tra "Categoria" e "Iniziativa" i riquadri che descrivono tipo e sottotipo: vanno ignorati
   const mCat = t.match(/^[ \t]*Categoria\b[^\n]*\n/m), mIni = t.match(/^[ \t]*Iniz(?:iativa)?\b/m);
   if (mCat && mIni && mIni.index > mCat.index) t = t.slice(0, mCat.index + mCat[0].length) + t.slice(mIni.index);
@@ -558,8 +559,12 @@ function parseStat(txt) {
   d.mischia = L("Mischia"); d.distanza = L("Distanza");
   d.spazio = L("Spazio", "([^\\n;]+)"); d.portata = L("Portata", "([^\\n;]+)");
   d.attsp = L("Attacchi Speciali");
-  const mag = t.match(/^[ \t]*(Capacità Magiche[^\n]*(?:\n(?![ \t]*(?:STATISTICHE|Statistiche|Caratteristiche|Incantesimi|Spazio|Portata|Attacchi|Bonus di Attacco|For(?:za)?\s*:?\s*\d)).+)*)/m);
-  d.magiche = mag ? mag[1].trim() : "";
+  // blocchi a elenco (capacità magiche, incantesimi): l'intestazione e le righe con frequenza o livello, anche separate da righe vuote
+  const CONT = /^[ \t]*(?:$|A [Vv]olont|Costant|Sempre|\d+\s*\/\s*(?:giorno|settimana|mese|anno)|\d+°|0\s*\(|[•·—-]\s|D\s|Domini|Scuola|Stirpe|Mistero|Patrono|Opposizion|Spiriti)/;
+  const blocco = lab => { const r = t.split("\n"), i = r.findIndex(l => new RegExp("^[ \\t]*(?:" + lab + ")(?![\\wÀ-ÿ])").test(l)); if (i < 0) return "";
+    const out = [r[i].trim()]; for (let k = i + 1; k < r.length && CONT.test(r[k]); k++) if (r[k].trim()) out.push(r[k].trim()); return out.join("\n"); };
+  d.magiche = blocco("Capacità Magiche");
+  d.incantesimi = [blocco("Incantesimi Conosciuti"), blocco("Incantesimi Preparati")].filter(Boolean).join("\n");
   const car = (full, ab) => { const m = t.match(new RegExp("\\b(?:" + full + "|" + ab + ")\\b\\s*:?\\s*(\\d+|—|–|-)")); return m ? (/^\d+$/.test(m[1]) ? +m[1] : null) : undefined; };
   d.car = { For: car("Forza", "For"), Des: car("Destrezza", "Des"), Cos: car("Costituzione", "Cos"), Int: car("Intelligenza", "Int"), Sag: car("Saggezza", "Sag"), Car: car("Carisma", "Car") };
   d.bab = g(/(?:Bonus di Attacco Base|Attacco Base|Att Base|BAB)\s*:?\s*([+-]?\d+)/);
@@ -605,7 +610,7 @@ function sheetData(S, gs, L) {
     gs: $("c-gs").value, dv, pf: num("c-pfmax", 0) + g * dv, pfBase: num("c-pfmax", 0), split: dividi(num("c-pfmax", 0) + g * dv),
     iniz: d.iniz || "—", sensi: d.sensi || "—", ca: caTxt,
     ts: `Tempra ${addN(d.temp)}, Riflessi ${addN(d.rifl)}, Volontà ${addN(d.vol)}`,
-    difese: d.difese, vel: d.vel || "—", mischia: d.mischia, distanza: d.distanza, spazio: d.spazio, portata: d.portata, attsp: d.attsp, magiche: d.magiche,
+    difese: d.difese, vel: d.vel || "—", mischia: d.mischia, distanza: d.distanza, spazio: d.spazio, portata: d.portata, attsp: d.attsp, magiche: d.magiche, incantesimi: d.incantesimi,
     car: d.car || {}, bab: d.bab, bmc: d.bmc, dmc: d.dmc, talenti: d.talenti, abilita: d.abilita, linguaggi: d.linguaggi, qs: d.qs, speciali: d.speciali,
     L, S, mat: $("p-mat").value.trim(), note: $("p-note").value.trim()
   };
@@ -629,7 +634,7 @@ function renderScheda(S, gs, L) {
       ${line("Tiri Salvezza", x.ts)}${line("Difese", x.difese)}</div>
     <div class="blk"><h3>Attacco</h3>
       ${line("Velocità", x.vel)}${x.mischia ? `<p><span class="lab">Mischia</span> ${esc(x.mischia)}${bonusAtt}</p>` : ""}${x.distanza ? `<p><span class="lab">Distanza</span> ${esc(x.distanza)}${bonusAtt}</p>` : ""}
-      ${line("Attacchi Speciali", x.attsp)}${line("Spazio", spazioPortata(x))}${x.magiche ? `<p class="pre">${esc(x.magiche)}</p>` : ""}</div>
+      ${line("Attacchi Speciali", x.attsp)}${line("Spazio", spazioPortata(x))}${x.magiche ? `<p class="pre">${esc(x.magiche)}</p>` : ""}${x.incantesimi ? `<p class="pre">${esc(x.incantesimi)}</p>` : ""}</div>
     <div class="blk"><h3>Statistiche</h3><div class="stats6">${car}</div>
       ${line("Iniziativa", x.iniz)}${line("Sensi", x.sensi)}${line("BAB", x.bab)}${line("BMC", x.bmc)}${line("DMC", x.dmc)}
       ${line("Talenti", x.talenti)}${line("Abilità", x.abilita)}${line("Linguaggi", x.linguaggi)}${line("Qualità Speciali", x.qs)}</div>
@@ -639,7 +644,7 @@ function renderScheda(S, gs, L) {
 }
 
 // ------- PDF -------
-const pdfSafe = s => String(s ?? "").replace(/−/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
+const pdfSafe = s => String(s ?? "").replace(/[−‒―]/g, "-").replace(/→/g, "->").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[^\x00-\xFF‘’“”–—•…€]/g, "");
 function creaPDF() {
   const S = sig(), gs = parseGS($("c-gs").value), L = legame(S, gs);
   const manuale = $("p-manuale").checked, pre = $("p-precompila").checked;
@@ -694,7 +699,7 @@ function creaPDF() {
   titolo("Attacco"); campo("Velocità", x.vel);
   const ba = manuale ? " [+ grado di Legame a TxC e danni]" : x.L.g ? ` [+${x.L.g} TxC e danni per il Legame]` : "";
   if (x.mischia) campo("Mischia", x.mischia + ba); if (x.distanza) campo("Distanza", x.distanza + ba);
-  campo("Attacchi Speciali", x.attsp); campo("Spazio", spazioPortata(x)); if (x.magiche) testo(x.magiche);
+  campo("Attacchi Speciali", x.attsp); campo("Spazio", spazioPortata(x)); if (x.magiche) testo(x.magiche); if (x.incantesimi) testo(x.incantesimi);
   titolo("Statistiche");
   campo("Caratteristiche", ["For","Des","Cos","Int","Sag","Car"].map(k => `${k} ${x.car[k] == null ? "-" : x.car[k]}`).join(", "));
   campo("Iniziativa", x.iniz); campo("Sensi", x.sensi); campo("BAB", x.bab); campo("BMC", x.bmc); campo("DMC", x.dmc);
